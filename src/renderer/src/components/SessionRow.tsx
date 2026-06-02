@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
 import { fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
 
@@ -9,7 +9,7 @@ interface Props {
   hasChildren: boolean
   expanded: boolean
   onClick: () => void
-  onContextMenu: () => void
+  onContextMenu: (event: MouseEvent<HTMLDivElement>) => void
   onToggle: () => void
 }
 
@@ -31,7 +31,7 @@ export const SessionRow = memo(function SessionRow({
       onClick={onClick}
       onContextMenu={(e) => {
         e.preventDefault()
-        onContextMenu()
+        onContextMenu(e)
       }}
       title={session.cwd || session.originalPath}
     >

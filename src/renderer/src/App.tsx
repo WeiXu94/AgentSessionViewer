@@ -3,7 +3,15 @@ import type { SessionMeta, TranscriptPayload } from '../../shared/ipc'
 import { FilterBar } from './components/FilterBar'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
-import { buildRows, type ListMode, metaKey } from './util'
+import { buildRows, type GroupMode, metaKey } from './util'
+
+type RowMenuAction = 'copy-resume' | 'copy-id' | 'copy-path' | 'reveal' | 'open-cwd' | 'filter-project'
+
+interface RowMenuState {
+  session: SessionMeta
+  x: number
+  y: number
+}
 
 export function App(): JSX.Element {
   const [sessions, setSessions] = useState<SessionMeta[]>([])
@@ -17,10 +25,13 @@ export function App(): JSX.Element {
   const [source, setSource] = useState('')
   const [project, setProject] = useState('')
   const [sidebarW, setSidebarW] = useState(380)
-  const [listMode, setListMode] = useState<ListMode>('tree')
+  const [groupMode, setGroupMode] = useState<GroupMode>('chronological')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
 
   const reqRef = useRef(0)
+  const rowMenuRef = useRef<HTMLDivElement>(null)
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
@@ -32,6 +43,23 @@ export function App(): JSX.Element {
   useEffect(() => {
     void refresh(false)
   }, [])
+
+  useEffect(() => {
+    if (!rowMenu) return
+
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!rowMenuRef.current?.contains(event.target as Node)) setRowMenu(null)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setRowMenu(null)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [rowMenu])
 
   // Load the transcript whenever the selected session changes (stale loads ignored).
   // Keyed on source+id+path: DB-backed sources share one originalPath across sessions.
@@ -77,8 +105,8 @@ export function App(): JSX.Element {
   }, [sessions, text, source, project])
 
   const rows = useMemo(
-    () => buildRows(filtered, sessions, listMode, expanded),
-    [filtered, sessions, listMode, expanded]
+    () => buildRows(filtered, sessions, 'tree', expanded, groupMode, collapsedGroups),
+    [filtered, sessions, expanded, groupMode, collapsedGroups]
   )
 
   function toggleExpand(id: string): void {
@@ -90,10 +118,31 @@ export function App(): JSX.Element {
     })
   }
 
-  async function onContextMenu(s: SessionMeta): Promise<void> {
-    const res = await window.api.showRowMenu(s)
-    if (!res) return
-    switch (res.action) {
+  function toggleGroup(id: string): void {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function onContextMenu(session: SessionMeta, point: { x: number; y: number }): void {
+    const menuWidth = 260
+    const menuHeight = session.repo ? 238 : 200
+    setRowMenu({
+      session,
+      x: Math.max(8, Math.min(point.x, window.innerWidth - menuWidth - 8)),
+      y: Math.max(8, Math.min(point.y, window.innerHeight - menuHeight - 8))
+    })
+  }
+
+  async function runRowMenuAction(action: RowMenuAction): Promise<void> {
+    if (!rowMenu) return
+    const s = rowMenu.session
+    setRowMenu(null)
+
+    switch (action) {
       case 'copy-resume':
         await window.api.copy(s.resumeCommand)
         break
@@ -137,22 +186,6 @@ export function App(): JSX.Element {
           {filtered.length !== sessions.length ? ` / ${sessions.length}` : ''}
         </span>
         <span className="titlebar__spacer" />
-        <div className="seg">
-          <button
-            className={`seg__btn${listMode === 'flat' ? ' seg__btn--active' : ''}`}
-            onClick={() => setListMode('flat')}
-            title="Flat list"
-          >
-            Flat
-          </button>
-          <button
-            className={`seg__btn${listMode === 'tree' ? ' seg__btn--active' : ''}`}
-            onClick={() => setListMode('tree')}
-            title="Tree list — nests subagents under their parent session"
-          >
-            Tree
-          </button>
-        </div>
         <button className="iconbtn" onClick={() => void refresh(true)} title="Reload sessions">
           ⟳
         </button>
@@ -164,10 +197,12 @@ export function App(): JSX.Element {
             text={text}
             source={source}
             project={project}
+            groupMode={groupMode}
             sources={sources}
             onText={setText}
             onSource={setSource}
             onProject={setProject}
+            onGroupMode={setGroupMode}
           />
           {loadingList ? (
             <div className="list list--empty">Scanning agent histories…</div>
@@ -178,6 +213,7 @@ export function App(): JSX.Element {
               onSelect={setSelected}
               onContextMenu={onContextMenu}
               onToggle={toggleExpand}
+              onToggleGroup={toggleGroup}
             />
           )}
         </aside>
@@ -197,6 +233,71 @@ export function App(): JSX.Element {
           />
         </main>
       </div>
+
+      {rowMenu ? (
+        <div
+          ref={rowMenuRef}
+          className="dropdownMenu contextMenu"
+          role="menu"
+          style={{ left: rowMenu.x, top: rowMenu.y }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            disabled={!rowMenu.session.resumeCommand}
+            onClick={() => void runRowMenuAction('copy-resume')}
+          >
+            Copy Resume Command
+          </button>
+          <div className="dropdownMenu__separator" />
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            onClick={() => void runRowMenuAction('copy-id')}
+          >
+            Copy Session ID
+          </button>
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            onClick={() => void runRowMenuAction('copy-path')}
+          >
+            Copy Path
+          </button>
+          <div className="dropdownMenu__separator" />
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            onClick={() => void runRowMenuAction('reveal')}
+          >
+            Reveal Session Log in Finder
+          </button>
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            disabled={!rowMenu.session.cwd}
+            onClick={() => void runRowMenuAction('open-cwd')}
+          >
+            Open Working Directory
+          </button>
+          <div className="dropdownMenu__separator" />
+          <button
+            className="dropdownMenu__item"
+            type="button"
+            role="menuitem"
+            disabled={!rowMenu.session.repo}
+            onClick={() => void runRowMenuAction('filter-project')}
+          >
+            {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -66,24 +66,10 @@ export interface TranscriptPayload {
   error?: string
 }
 
-export type ContextMenuActionId =
-  | 'copy-resume'
-  | 'copy-id'
-  | 'copy-path'
-  | 'reveal'
-  | 'open-cwd'
-  | 'filter-project'
-
-export interface ContextMenuResult {
-  action: ContextMenuActionId
-  sessionId: string
-}
-
 export interface SessionsAPI {
   list: (force?: boolean) => Promise<SessionMeta[]>
   /** `id` is required to disambiguate DB-backed sources where many sessions share one originalPath. */
   loadTranscript: (originalPath: string, source: string, id: string) => Promise<TranscriptPayload>
-  showRowMenu: (session: SessionMeta) => Promise<ContextMenuResult | null>
   reveal: (path: string) => Promise<void>
   openPath: (path: string) => Promise<void>
   copy: (text: string) => Promise<void>
