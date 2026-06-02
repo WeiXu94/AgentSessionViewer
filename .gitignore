@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+release/
+.DS_Store
+*.log
+
+# Reference repos (kept locally, not part of this app)
+/agent-sessions/
+/cli-continues/
+
+# Build/verification artifacts
+scripts/*.mjs
+
+# Local scratch / TS build cache
+tmp/
+*.tsbuildinfo

@@ -1,0 +1,48 @@
+appId: com.weixu.agentsessionviewer
+productName: AgentSessionViewer
+copyright: Copyright © 2026 weixu
+
+directories:
+  output: release
+  buildResources: resources
+
+# Only ship the built output + runtime assets. electron-builder always adds the
+# production node_modules (chalk/yaml/zod) and package.json on top of this.
+files:
+  - out/**/*
+  - resources/icon.png
+
+asar: true
+
+mac:
+  category: public.app-category.developer-tools
+  icon: resources/icon.icns
+  # Unsigned, ad-hoc build so CI without an Apple certificate succeeds.
+  # Users open via right-click → Open (Gatekeeper) the first time.
+  identity: null
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+
+win:
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  icon: resources/icon.png
+  category: Development
+  target:
+    - target: AppImage
+      arch: [x64]
+
+# No `publish:` block on purpose — local `package`/`package:mac` builds then never
+# touch GitHub. The CI `release` step (`electron-builder --publish always`) infers
+# the GitHub provider + repo from the git remote at publish time.
