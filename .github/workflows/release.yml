@@ -30,10 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish
+      - name: Build installers
         env:
-          # Used by electron-builder to create/upload the GitHub Release.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No Apple/Windows signing certs in CI — skip signing.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npm run release
+        run: npm run package
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*.AppImage

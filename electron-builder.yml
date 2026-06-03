@@ -21,9 +21,7 @@ mac:
   identity: null
   target:
     - target: dmg
-      arch: [arm64, x64]
-    - target: zip
-      arch: [arm64, x64]
+      arch: [arm64, universal]
 
 win:
   icon: resources/icon.ico
@@ -42,6 +40,5 @@ linux:
     - target: AppImage
       arch: [x64]
 
-# No `publish:` block on purpose — local `package`/`package:mac` builds then never
-# touch GitHub. The CI `release` step (`electron-builder --publish always`) infers
-# the GitHub provider + repo from the git remote at publish time.
+# No `publish:` block on purpose. CI builds locally, then uploads only the
+# installer assets selected by `.github/workflows/release.yml`.
