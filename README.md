@@ -1,8 +1,9 @@
 # AgentSessionViewer
 
-A fast, local viewer for AI coding-agent sessions — **Claude Code, Codex, OpenCode, Pi, and 15 other tools**.
-A lean Electron fork of [Agent Sessions](./agent-sessions), reusing the battle-tested session
-parsers from [cli-continues](./cli-continues) (plus a Pi parser ported from Agent Sessions).
+A fast viewer of various AI agent sessions.
+
+A lean Electron fork of [Agent Sessions](https://github.com/jazzyalex/agent-sessions), reusing the battle-tested session
+parsers from [cli-continues](https://github.com/yigitkonur/cli-continues) (plus a Pi parser ported from [Agent Sessions](https://github.com/jazzyalex/agent-sessions)).
 
 Built because the original stuttered when rendering large transcripts / raw JSONL. This version
 parses an **18 MB Codex session in ~33 ms** and a **7.6 MB Claude session in ~16 ms**, then renders
