@@ -53,5 +53,5 @@ cp -R "$SRC" "$DEST"
 xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1 || true
 codesign --force --deep --sign - "$DEST" >/dev/null 2>&1 || true
 
-echo "✓ Installed. Open it from Launchpad/Applications, or run:"
-echo "    open \"$DEST\""
+echo "✓ Installed. Launching…"
+open "$DEST"
