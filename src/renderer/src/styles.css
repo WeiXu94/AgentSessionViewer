@@ -667,6 +667,10 @@ body {
 .bubble--thinking details {
   border-color: color-mix(in srgb, var(--thinking) 35%, var(--border));
 }
+.bubble--system details {
+  border-color: var(--border);
+  background: transparent;
+}
 .bubble--tool_call details,
 .bubble--tool_result details {
   border-color: color-mix(in srgb, var(--tool) 30%, var(--border));
@@ -690,9 +694,17 @@ body {
 .bubble--thinking .bubble__icon {
   color: var(--thinking);
 }
+.bubble--system .bubble__icon {
+  color: var(--text-faint);
+}
 .bubble__title {
   font-family: var(--mono);
   font-weight: 600;
+}
+.bubble--system .bubble__title {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .bubble--thinking .bubble__title {
   color: var(--thinking);

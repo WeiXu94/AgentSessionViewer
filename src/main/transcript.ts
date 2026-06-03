@@ -4,6 +4,7 @@ import { getSession } from './indexer.js'
 import { claudeNodes } from './mappers/claude.js'
 import { codexNodes } from './mappers/codex.js'
 import { genericNodes, reconstructPayload } from './mappers/generic.js'
+import { loadOpenCodePayload } from './mappers/opencode.js'
 import { piNodes } from './mappers/pi.js'
 import { scanJsonlLines } from './sessions/utils/jsonl.js'
 
@@ -56,6 +57,11 @@ function nodesFor(source: string, records: unknown[]): ViewNode[] {
  */
 export async function loadTranscript(originalPath: string, source: string, id: string): Promise<TranscriptPayload> {
   try {
+    if (source === 'opencode') {
+      const payload = loadOpenCodePayload(originalPath, id)
+      if (payload) return payload
+    }
+
     const stat = fs.existsSync(originalPath) ? fs.statSync(originalPath) : null
     const isFile = !!stat?.isFile()
     const lower = originalPath.toLowerCase()

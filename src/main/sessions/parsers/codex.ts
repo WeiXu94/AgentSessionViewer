@@ -15,7 +15,7 @@ import type {
 import type { CodexMessage, CodexSessionMeta } from '../types/schemas.js';
 import { countDiffStats, extractStdoutTail } from '../utils/diff.js';
 import { findFiles, mapConcurrent } from '../utils/fs-helpers.js';
-import { getFileStats, readJsonlFile, scanJsonlFile, scanJsonlHead } from '../utils/jsonl.js';
+import { getFileStats, readJsonlFile, scanJsonlFile, scanJsonlLines } from '../utils/jsonl.js';
 import { generateHandoffMarkdown } from '../utils/markdown.js';
 import { cleanSummary, extractRepo, homeDir } from '../utils/parser-helpers.js';
 import { matchesCwd } from '../utils/slug.js';
@@ -33,9 +33,14 @@ import {
 const CODEX_HOME_DIR = process.env.CODEX_HOME || path.join(homeDir(), '.codex');
 const CODEX_SESSIONS_DIR = path.join(CODEX_HOME_DIR, 'sessions');
 const CODEX_ARCHIVED_SESSIONS_DIR = path.join(CODEX_HOME_DIR, 'archived_sessions');
+const CODEX_SESSION_INDEX_FILE = path.join(CODEX_HOME_DIR, 'session_index.jsonl');
 
 const MAX_EXACT_LINE_COUNT_BYTES = 1024 * 1024;
 const MAX_METADATA_SCAN_BYTES = 1024 * 1024;
+const MAX_TITLE_SCAN_LINES = 150;
+const MAX_TITLE_SCAN_LINE_CHARS = 64 * 1024 * 1024;
+const USER_TEXT_PART_TYPES = new Set(['input_text', 'text']);
+const ASSISTANT_TEXT_PART_TYPES = new Set(['output_text', 'text']);
 
 /**
  * Find all Codex session files recursively
@@ -48,43 +53,170 @@ async function findSessionFiles(): Promise<string[]> {
   );
 }
 
+function parseTimestampMs(value: unknown): number {
+  if (typeof value !== 'string') return 0;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function loadCodexThreadNames(): Map<string, string> {
+  const entries = new Map<string, { name: string; updatedAt: number }>();
+  if (!fs.existsSync(CODEX_SESSION_INDEX_FILE)) return new Map();
+
+  try {
+    const lines = fs.readFileSync(CODEX_SESSION_INDEX_FILE, 'utf8').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        const id = typeof parsed.id === 'string' ? parsed.id : '';
+        const name = typeof parsed.thread_name === 'string' ? parsed.thread_name.trim() : '';
+        if (!id || !name) continue;
+
+        const updatedAt = parseTimestampMs(parsed.updated_at);
+        const existing = entries.get(id);
+        if (!existing || updatedAt >= existing.updatedAt) {
+          entries.set(id, { name, updatedAt });
+        }
+      } catch (err) {
+        logger.debug('codex: skipping invalid session_index line', err);
+      }
+    }
+  } catch (err) {
+    logger.debug('codex: failed to read session_index', CODEX_SESSION_INDEX_FILE, err);
+  }
+
+  return new Map(Array.from(entries, ([id, entry]) => [id, entry.name]));
+}
+
+function decodeJsonStringBody(body: string): string {
+  try {
+    return JSON.parse(`"${body}"`) as string;
+  } catch {
+    return body;
+  }
+}
+
+function extractJsonStringField(line: string, field: string): string {
+  const match = line.match(new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'u'));
+  return match ? decodeJsonStringBody(match[1]) : '';
+}
+
+function isCodexSystemInjected(text: string): boolean {
+  return (
+    text.startsWith('<environment_context>') ||
+    text.startsWith('<permissions') ||
+    text.startsWith('# AGENTS.md') ||
+    text.startsWith('<user_instructions>')
+  );
+}
+
+function codexContentText(content: unknown, allowedTypes: Set<string>): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return '';
+      const record = part as Record<string, unknown>;
+      const type = typeof record.type === 'string' ? record.type : '';
+      const text = typeof record.text === 'string' ? record.text : '';
+      return text && allowedTypes.has(type) ? text : '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function extractFirstUserMessageFromParsed(parsed: unknown): string {
+  if (!parsed || typeof parsed !== 'object') return '';
+  const msg = parsed as Record<string, unknown>;
+
+  if (msg.type === 'event_msg') {
+    const payload = msg.payload as Record<string, unknown> | undefined;
+    if (payload?.type === 'user_message') {
+      return typeof payload.message === 'string' ? payload.message : '';
+    }
+  }
+
+  if (msg.type === 'message' && msg.role === 'user') {
+    const text = typeof msg.content === 'string' ? msg.content : codexContentText(msg.content, USER_TEXT_PART_TYPES);
+    return text && !isCodexSystemInjected(text) ? text : '';
+  }
+
+  if (msg.type === 'response_item') {
+    const payload = msg.payload as Record<string, unknown> | undefined;
+    if (payload?.type === 'message' && payload.role === 'user') {
+      const text = codexContentText(payload.content, USER_TEXT_PART_TYPES);
+      return text && !isCodexSystemInjected(text) ? text : '';
+    }
+  }
+
+  return '';
+}
+
+function extractFirstUserMessageFromLine(line: string): string {
+  if (!line.includes('"user"') && !line.includes('"user_message"')) return '';
+
+  // Fast paths avoid JSON.parse on image-bearing records whose base64 payloads
+  // can be megabytes long even when the visible prompt text is short.
+  if (line.includes('"type":"event_msg"') && line.includes('"type":"user_message"')) {
+    return extractJsonStringField(line, 'message');
+  }
+
+  if (line.includes('"type":"response_item"') && line.includes('"type":"message"') && line.includes('"role":"user"')) {
+    const text = extractJsonStringField(line, 'text');
+    return text && !isCodexSystemInjected(text) ? text : '';
+  }
+
+  if (line.includes('"type":"message"') && line.includes('"role":"user"')) {
+    const text = extractJsonStringField(line, 'content');
+    return text && !isCodexSystemInjected(text) ? text : '';
+  }
+
+  try {
+    return extractFirstUserMessageFromParsed(JSON.parse(line));
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Parse session metadata and first user message
  */
-async function parseSessionInfo(filePath: string): Promise<{
+async function parseSessionInfo(
+  filePath: string,
+  includeFirstUserMessage = true,
+): Promise<{
   meta: CodexSessionMeta | null;
   firstUserMessage: string;
 }> {
   let meta: CodexSessionMeta | null = null;
   let firstUserMessage = '';
 
-  await scanJsonlHead(
+  await scanJsonlLines(
     filePath,
-    150,
-    (parsed) => {
-      const msg = parsed as Record<string, unknown>;
+    (line, lineIndex) => {
+      if (lineIndex >= MAX_TITLE_SCAN_LINES) return 'stop';
 
-      if (msg.type === 'session_meta' && !meta) {
-        meta = msg as unknown as CodexSessionMeta;
-      }
-
-      if (!firstUserMessage && msg.type === 'event_msg') {
-        const payload = msg.payload as Record<string, unknown> | undefined;
-        if (payload?.type === 'user_message') {
-          firstUserMessage = (payload.message as string) || '';
+      if (!meta && line.includes('"type":"session_meta"')) {
+        try {
+          const parsed = JSON.parse(line) as Record<string, unknown>;
+          if (parsed.type === 'session_meta') meta = parsed as unknown as CodexSessionMeta;
+        } catch (err) {
+          logger.debug('codex: failed to parse session_meta', filePath, err);
         }
       }
 
-      if (!firstUserMessage && msg.type === 'message' && (msg as Record<string, unknown>).role === 'user') {
-        firstUserMessage = typeof msg.content === 'string' ? (msg.content as string) : '';
+      if (includeFirstUserMessage && !firstUserMessage) {
+        firstUserMessage = extractFirstUserMessageFromLine(line);
       }
 
-      if (meta && firstUserMessage) {
+      if (meta && (!includeFirstUserMessage || firstUserMessage)) {
         return 'stop';
       }
       return 'continue';
     },
-    { maxBytes: MAX_METADATA_SCAN_BYTES },
+    { maxLineChars: MAX_TITLE_SCAN_LINE_CHARS },
   );
 
   return { meta, firstUserMessage };
@@ -146,13 +278,15 @@ function parseFilename(filename: string): { timestamp: Date; id: string } | null
  */
 export async function parseCodexSessions(options: SessionParseOptions = {}): Promise<UnifiedSession[]> {
   const files = await findSessionFiles();
+  const threadNames = loadCodexThreadNames();
   const parsedSessions = await mapConcurrent(files, 16, async (filePath): Promise<UnifiedSession | null> => {
     try {
       const filename = path.basename(filePath);
       const parsed = parseFilename(filename);
       if (!parsed) return null;
 
-      const { meta, firstUserMessage } = await parseSessionInfo(filePath);
+      const threadName = threadNames.get(parsed.id);
+      const { meta, firstUserMessage } = await parseSessionInfo(filePath, !threadName);
       const fileStats = fs.statSync(filePath);
       const stats =
         options.lightweight || fileStats.size > MAX_EXACT_LINE_COUNT_BYTES
@@ -172,7 +306,7 @@ export async function parseCodexSessions(options: SessionParseOptions = {}): Pro
           ? await extractLastCodexTimestamp(filePath)
           : undefined;
 
-      const summary = cleanSummary(firstUserMessage);
+      const summary = cleanSummary(threadName || firstUserMessage);
       const originator = typeof payloadRecord?.originator === 'string' ? payloadRecord.originator : undefined;
       const subagent = extractCodexSubagent(payloadRecord);
 
@@ -603,26 +737,13 @@ export async function extractCodexContext(session: UnifiedSession, config?: Verb
     } else if (msg.type === 'response_item') {
       const payload = msg.payload;
       if (payload?.role === 'user' && payload.type === 'message') {
-        const contentParts = payload.content || [];
-        const text = contentParts
-          .filter((c) => c.type === 'input_text' && c.text)
-          .map((c) => c.text)
-          .join('\n');
+        const text = codexContentText(payload.content, USER_TEXT_PART_TYPES);
         // Skip system-injected content (AGENTS.md instructions, environment_context, permissions)
-        if (
-          text &&
-          !text.startsWith('<environment_context>') &&
-          !text.startsWith('<permissions') &&
-          !text.startsWith('# AGENTS.md')
-        ) {
+        if (text && !isCodexSystemInjected(text)) {
           responseItemEntries.push({ role: 'user', content: text, timestamp: new Date(msg.timestamp) });
         }
       } else if (payload?.role === 'assistant' && payload.type === 'message') {
-        const contentParts = payload.content || [];
-        const text = contentParts
-          .filter((c) => (c.type === 'output_text' || c.type === 'text') && c.text)
-          .map((c) => c.text)
-          .join('\n');
+        const text = codexContentText(payload.content, ASSISTANT_TEXT_PART_TYPES);
         if (text) {
           responseItemEntries.push({ role: 'assistant', content: text, timestamp: new Date(msg.timestamp) });
         }

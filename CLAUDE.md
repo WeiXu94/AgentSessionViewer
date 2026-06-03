@@ -26,6 +26,18 @@ under Node — `src/main/indexer.ts` and `transcript.ts` have no Electron depend
 npx esbuild scripts/x.ts --bundle --platform=node --format=esm --packages=external --outfile=scripts/x.mjs && node scripts/x.mjs
 ```
 
+## Lessons
+
+- Use `agent-browser` to test and debug this Electron app, not only the plain Vite renderer URL. Start with `agent-browser skills get electron --full`.
+- To test the real Electron preload/main integration, launch a CDP-enabled Electron instance:
+  `ELECTRON_RENDERER_URL=http://localhost:5173 ./node_modules/electron/dist/Electron.app/Contents/MacOS/Electron . --remote-debugging-port=9222`
+- Then drive it with per-command CDP flags, for example:
+  `agent-browser --session asv-electron --cdp 9222 snapshot -i`
+- If `agent-browser connect 9222` fails with `Target.createTarget: Not supported`, keep using `--cdp 9222` on each command.
+- Confirm the target is the real Electron app before trusting UI results: `agent-browser --session asv-electron --cdp 9222 eval "JSON.stringify({ hasApi: !!window.api, keys: window.api ? Object.keys(window.api) : [] })"` should show `window.api`.
+- Stop any temporary CDP Electron process after testing; leave the user's existing dev app alone unless asked.
+- For new agent support, keep the split clear: parsers in `src/main/sessions/` come from / should be compared against `cli-continues` and discover/index normalized `UnifiedSession` metadata; mappers in `src/main/mappers/` are this app's raw-record-to-`ViewNode` transcript renderer and should refer to `agent-sessions` UI/viewer logic plus existing mappers when adding full-fidelity display. Pi is the known parser exception ported from `agent-sessions`.
+
 ## Architecture
 
 electron-vite, three layers; the renderer has no Node access and talks only over IPC.

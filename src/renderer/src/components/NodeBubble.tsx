@@ -10,6 +10,7 @@ function clamp(text: string): string {
 }
 
 const ICON: Record<string, string> = {
+  system: '#',
   tool_call: '⚙',
   tool_result: '↳',
   thinking: '✦'
@@ -18,7 +19,7 @@ const ICON: Record<string, string> = {
 export const NodeBubble = memo(function NodeBubble({ node }: { node: ViewNode }): JSX.Element {
   const text = clamp(node.text)
 
-  if (node.kind === 'user' || node.kind === 'assistant' || node.kind === 'system' || node.kind === 'meta') {
+  if (node.kind === 'user' || node.kind === 'assistant' || node.kind === 'meta') {
     return (
       <div className={`bubble bubble--${node.kind}`}>
         <div className="bubble__head">{node.title}</div>
@@ -27,14 +28,14 @@ export const NodeBubble = memo(function NodeBubble({ node }: { node: ViewNode })
     )
   }
 
-  // thinking / tool_call / tool_result — collapsible
-  const defaultOpen = node.kind !== 'tool_result' && node.bytes <= 600
+  // system / thinking / tool_call / tool_result — collapsible
+  const defaultOpen = node.bytes <= 12_000
   return (
     <div className={`bubble bubble--${node.kind}`}>
       <details open={defaultOpen}>
         <summary className="bubble__summary">
           <span className="bubble__icon">{ICON[node.kind] ?? '•'}</span>
-          <span className="bubble__title">{node.toolName || node.title}</span>
+          <span className="bubble__title">{node.title || node.toolName}</span>
           <span className="bubble__size">{fmtBytes(node.bytes)}</span>
         </summary>
         <pre className="bubble__pre">{text}</pre>

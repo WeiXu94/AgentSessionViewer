@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install the locally-built AgentSessionViewer.app into /Applications.
-# Builds first if no packaged app is found. Ad-hoc signs the (unsigned) app so
+# Always re-packs first (unless --skip-pack is given). Ad-hoc signs so
 # macOS Gatekeeper lets it launch on this machine.
 set -euo pipefail
 
@@ -9,9 +9,15 @@ cd "$(dirname "$0")/.."
 APP_NAME="AgentSessionViewer.app"
 APP_BIN="${APP_NAME%.app}"
 DEST="/Applications/$APP_NAME"
+SKIP_PACK=false
 
-# Pick the .app matching this Mac's architecture (arm64 -> release/mac-arm64,
-# Intel -> release/mac), preferring a universal build, then falling back to whatever exists.
+for arg in "$@"; do
+  case "$arg" in
+    --skip-pack|-s) SKIP_PACK=true ;;
+  esac
+done
+
+# Pick the .app matching this Mac's architecture
 pick_app() {
   local order
   if [ "$(uname -m)" = "arm64" ]; then
@@ -25,16 +31,15 @@ pick_app() {
   ls -dt release/mac*/"$APP_NAME" 2>/dev/null | head -1 || true
 }
 
-SRC="$(pick_app)"
-
-if [ -z "$SRC" ]; then
-  echo "No built app found — building for macOS first…"
-  npm run package:mac
-  SRC="$(pick_app)"
+if [ "$SKIP_PACK" = false ]; then
+  echo "Building & packaging app…"
+  npm run pack:dir
 fi
 
+SRC="$(pick_app)"
+
 if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
-  echo "error: could not find $APP_NAME under release/. Run 'npm run package:mac'." >&2
+  echo "error: could not find $APP_NAME under release/. Run 'npm run pack:dir'." >&2
   exit 1
 fi
 
