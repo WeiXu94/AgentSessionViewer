@@ -1,44 +1,121 @@
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 import type { ViewNode } from '../../../shared/ipc'
 import { fmtBytes } from '../util'
 
 const MAX_DISPLAY = 200_000
 
-function clamp(text: string): string {
+export function displayNodeText(text: string): string {
   if (text.length <= MAX_DISPLAY) return text
   return `${text.slice(0, MAX_DISPLAY)}\n…(${fmtBytes(text.length - MAX_DISPLAY)} more — open JSON view for full content)`
 }
 
 const ICON: Record<string, string> = {
+  meta: 'i',
   system: '#',
   tool_call: '⚙',
   tool_result: '↳',
   thinking: '✦'
 }
 
-export const NodeBubble = memo(function NodeBubble({ node }: { node: ViewNode }): JSX.Element {
-  const text = clamp(node.text)
+function highlightedText(text: string, query: string, startOrdinal: number, activeOrdinal?: number): [ReactNode, number] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return [text, startOrdinal]
 
-  if (node.kind === 'user' || node.kind === 'assistant' || node.kind === 'meta') {
+  const lower = text.toLowerCase()
+  const parts: ReactNode[] = []
+  let from = 0
+  let ordinal = startOrdinal
+
+  for (;;) {
+    const index = lower.indexOf(needle, from)
+    if (index === -1) break
+    if (index > from) parts.push(text.slice(from, index))
+
+    const next = index + needle.length
+    parts.push(
+      <mark
+        key={`${index}-${ordinal}`}
+        className={`searchMark${ordinal === activeOrdinal ? ' searchMark--active' : ''}`}
+      >
+        {text.slice(index, next)}
+      </mark>
+    )
+    ordinal++
+    from = next
+  }
+
+  if (from < text.length) parts.push(text.slice(from))
+  return [parts.length ? parts : text, ordinal]
+}
+
+interface NodeBubbleProps {
+  node: ViewNode
+  searchQuery?: string
+  hasSearchMatch?: boolean
+  activeMatchOrdinal?: number
+  blockOpenMode?: 'default' | 'collapsed' | 'expanded'
+}
+
+function isDefaultOpenToolCall(node: ViewNode): boolean {
+  if (node.kind !== 'tool_call') return false
+
+  const name = `${node.toolName ?? ''} ${node.title ?? ''}`.toLowerCase()
+  if (/\bexec_command\b/u.test(name) || /\bshell_command\b/u.test(name)) return true
+  if (/\bbash\b/u.test(name)) return true
+  if (/\bread_completed\b/u.test(name) || /\bread\s+completed\b/u.test(name)) return true
+  return false
+}
+
+function defaultDetailsOpen(node: ViewNode, hasSearchMatch: boolean): boolean {
+  if (hasSearchMatch) return true
+  return isDefaultOpenToolCall(node)
+}
+
+export const NodeBubble = memo(function NodeBubble({
+  node,
+  searchQuery = '',
+  hasSearchMatch = false,
+  activeMatchOrdinal,
+  blockOpenMode = 'default'
+}: NodeBubbleProps): JSX.Element {
+  const text = displayNodeText(node.text)
+  const defaultOpen =
+    blockOpenMode === 'expanded' || (blockOpenMode === 'default' && defaultDetailsOpen(node, hasSearchMatch))
+  const bubbleClass = [
+    'bubble',
+    `bubble--${node.kind}`,
+    hasSearchMatch ? 'bubble--search-hit' : '',
+    activeMatchOrdinal !== undefined ? 'bubble--search-active' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  if (node.kind === 'user' || node.kind === 'assistant') {
+    const [title, nextOrdinal] = highlightedText(node.title ?? '', searchQuery, 0, activeMatchOrdinal)
+    const [body] = highlightedText(text, searchQuery, nextOrdinal, activeMatchOrdinal)
+
     return (
-      <div className={`bubble bubble--${node.kind}`}>
-        <div className="bubble__head">{node.title}</div>
-        <div className="bubble__text">{text}</div>
+      <div className={bubbleClass}>
+        <div className="bubble__head">{title}</div>
+        <div className="bubble__text">{body}</div>
       </div>
     )
   }
 
-  // system / thinking / tool_call / tool_result — collapsible
-  const defaultOpen = node.bytes <= 12_000
+  // meta / system / thinking / tool_call / tool_result — collapsible
+  const displayTitle = node.title || node.toolName || ''
+  const [title, nextOrdinal] = highlightedText(displayTitle, searchQuery, 0, activeMatchOrdinal)
+  const [body] = highlightedText(text, searchQuery, nextOrdinal, activeMatchOrdinal)
+
   return (
-    <div className={`bubble bubble--${node.kind}`}>
+    <div className={bubbleClass}>
       <details open={defaultOpen}>
         <summary className="bubble__summary">
           <span className="bubble__icon">{ICON[node.kind] ?? '•'}</span>
-          <span className="bubble__title">{node.title || node.toolName}</span>
+          <span className="bubble__title">{title}</span>
           <span className="bubble__size">{fmtBytes(node.bytes)}</span>
         </summary>
-        <pre className="bubble__pre">{text}</pre>
+        <pre className="bubble__pre">{body}</pre>
       </details>
     </div>
   )

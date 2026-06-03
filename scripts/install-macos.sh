@@ -21,9 +21,9 @@ done
 pick_app() {
   local order
   if [ "$(uname -m)" = "arm64" ]; then
-    order="release/mac-universal release/mac-arm64 release/mac"
+    order="release/mac-arm64 release/mac-universal release/mac"
   else
-    order="release/mac-universal release/mac release/mac-arm64"
+    order="release/mac release/mac-universal release/mac-arm64"
   fi
   for d in $order; do
     [ -d "$d/$APP_NAME" ] && { echo "$d/$APP_NAME"; return; }
@@ -33,6 +33,7 @@ pick_app() {
 
 if [ "$SKIP_PACK" = false ]; then
   echo "Building & packaging app…"
+  rm -rf release/mac release/mac-arm64 release/mac-universal
   npm run pack:dir
 fi
 

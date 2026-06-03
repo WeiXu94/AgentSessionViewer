@@ -1,6 +1,6 @@
 {
   "name": "agent-session-viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Fast viewer for local AI coding-agent sessions (Claude, Codex, Pi, and more)",
   "author": "weixu <weixu1026@gmail.com>",
