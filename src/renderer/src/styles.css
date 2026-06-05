@@ -908,6 +908,17 @@ input {
   cursor: default;
 }
 
+.row__bar {
+  width: 3px;
+  height: 34px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.row--selected .row__bar {
+  background: color-mix(in srgb, var(--accent-fg) 78%, transparent) !important;
+}
+
 .app-icon {
   display: grid;
   place-items: center;
@@ -1169,11 +1180,11 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 15px;
   padding: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--field);
   color: var(--label-2);
   cursor: pointer;
@@ -1191,8 +1202,8 @@ input {
 }
 
 .viewerFork__jumpIcon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;

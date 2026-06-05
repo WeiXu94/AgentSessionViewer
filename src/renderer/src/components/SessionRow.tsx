@@ -28,7 +28,7 @@ export const SessionRow = memo(function SessionRow({
   return (
     <div
       className={`row${selected ? ' row--selected' : ''}${isSub ? ' row--sub' : ''}`}
-      style={{ paddingLeft: 6 + depth * 18 }}
+      style={{ paddingLeft: 4 + depth * 16 }}
       onClick={onClick}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -50,6 +50,7 @@ export const SessionRow = memo(function SessionRow({
       ) : (
         <span className="row__caret row__caret--spacer" />
       )}
+      <span className="row__bar" style={{ background: sourceColor(session.source) }} />
       <div className="row__main">
         <div className="row__line1">
           <span className="row__title">{sessionTitle(session)}</span>
