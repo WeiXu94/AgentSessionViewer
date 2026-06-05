@@ -14,6 +14,15 @@ function stringify(value: unknown): string {
   return s
 }
 
+function colorJson(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/"([^"\\]*(?:\\.[^"\\]*)*)":/gu, '<span class="k">"$1"</span>:')
+    .replace(/: "([^"\\]*(?:\\.[^"\\]*)*)"/gu, ': <span class="s">"$1"</span>')
+    .replace(/: (-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/giu, ': <span class="n">$1</span>')
+}
+
 interface Props {
   records: unknown[]
   reconstructed: boolean
@@ -55,7 +64,10 @@ export function JsonView({ records, reconstructed }: Props): JSX.Element {
             >
               <div className="json__record">
                 <span className="json__idx">{item.index}</span>
-                <pre className="json__pre">{stringify(records[item.index])}</pre>
+                <pre
+                  className="json__pre"
+                  dangerouslySetInnerHTML={{ __html: colorJson(stringify(records[item.index])) }}
+                />
               </div>
             </div>
           ))}

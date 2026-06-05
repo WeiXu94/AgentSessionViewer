@@ -1,6 +1,7 @@
 import { memo, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
 import { fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
+import { MacIcon, Tri } from './MacIcons'
 
 interface Props {
   session: SessionMeta
@@ -44,15 +45,17 @@ export const SessionRow = memo(function SessionRow({
           }}
           title={expanded ? 'Collapse subagents' : 'Expand subagents'}
         >
-          ▶
+          <Tri />
         </button>
       ) : (
         <span className="row__caret row__caret--spacer" />
       )}
-      <span className="row__bar" style={{ background: sourceColor(session.source) }} />
       <div className="row__main">
-        <div className="row__title">{sessionTitle(session)}</div>
-        <div className="row__meta">
+        <div className="row__line1">
+          <span className="row__title">{sessionTitle(session)}</span>
+          <span className="row__time">{fmtTime(session.updatedAt)}</span>
+        </div>
+        <div className="row__meta row__line2">
           {isSub ? (
             <span className="vchip vchip--sub">{session.variantLabel || 'subagent'}</span>
           ) : (
@@ -64,9 +67,12 @@ export const SessionRow = memo(function SessionRow({
               {session.forkParentId ? <span className="vchip">fork</span> : null}
             </>
           )}
-          {session.repo ? <span className="row__repo">{session.repo}</span> : null}
-          <span className="row__spacer" />
-          <span className="row__time">{fmtTime(session.updatedAt)}</span>
+          {session.repo ? (
+            <span className="row__repo">
+              <MacIcon name="repo" />
+              {session.repo}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

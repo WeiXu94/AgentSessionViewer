@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react'
 import type { ViewNode } from '../../../shared/ipc'
 import { fmtBytes } from '../util'
+import { MacIcon, MI, Tri } from './MacIcons'
 
 const MAX_DISPLAY = 200_000
 
@@ -9,12 +10,12 @@ export function displayNodeText(text: string): string {
   return `${text.slice(0, MAX_DISPLAY)}\n…(${fmtBytes(text.length - MAX_DISPLAY)} more — open JSON view for full content)`
 }
 
-const ICON: Record<string, string> = {
-  meta: 'i',
-  system: '#',
-  tool_call: '⚙',
-  tool_result: '↳',
-  thinking: '✦'
+const ICON: Record<string, keyof typeof MI> = {
+  meta: 'hash',
+  system: 'info',
+  tool_call: 'gear',
+  tool_result: 'returnArrow',
+  thinking: 'brain'
 }
 
 function highlightedText(text: string, query: string, startOrdinal: number, activeOrdinal?: number): [ReactNode, number] {
@@ -99,9 +100,9 @@ export const NodeBubble = memo(function NodeBubble({
       <div className={bubbleClass}>
         <div className="bubble__head">
           {node.inherited ? <span className="bubble__inherit">Inherited</span> : null}
-          {title}
+          <span className="bubble__role">{node.kind === 'user' ? 'You' : title || 'Assistant'}</span>
         </div>
-        <div className="bubble__text">{body}</div>
+        <div className="bubble__text msg">{body}</div>
       </div>
     )
   }
@@ -113,14 +114,19 @@ export const NodeBubble = memo(function NodeBubble({
 
   return (
     <div className={bubbleClass}>
-      <details open={defaultOpen}>
-        <summary className="bubble__summary">
-          <span className="bubble__icon">{ICON[node.kind] ?? '•'}</span>
-          <span className="bubble__title">{title}</span>
+      <details className={`block block--${node.kind}`} open={defaultOpen}>
+        <summary className="bubble__summary block__summary">
+          <span className="block__tri">
+            <Tri />
+          </span>
+          <span className="bubble__icon block__icon">
+            <MacIcon name={ICON[node.kind] ?? 'info'} />
+          </span>
+          <span className="bubble__title block__title">{title}</span>
           {node.inherited ? <span className="bubble__inherit">Inherited</span> : null}
-          <span className="bubble__size">{fmtBytes(node.bytes)}</span>
+          <span className="bubble__size block__size">{fmtBytes(node.bytes)}</span>
         </summary>
-        <pre className="bubble__pre">{body}</pre>
+        <pre className="bubble__pre block__body">{body}</pre>
       </details>
     </div>
   )

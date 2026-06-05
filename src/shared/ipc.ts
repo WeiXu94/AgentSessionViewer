@@ -79,4 +79,6 @@ export interface SessionsAPI {
   reveal: (path: string) => Promise<void>
   openPath: (path: string) => Promise<void>
   copy: (text: string) => Promise<void>
+  getAccentColor: () => Promise<string>
+  onAccentColorChanged: (callback: (accent: string) => void) => () => void
 }

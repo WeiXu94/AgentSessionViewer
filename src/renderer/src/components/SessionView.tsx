@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ViewNode } from '../../../shared/ipc'
+import { MacIcon } from './MacIcons'
 import { displayNodeText, NodeBubble } from './NodeBubble'
 
 export interface SessionSearchMatch {
@@ -50,37 +51,15 @@ function topVisibleIndex(items: Array<{ index: number; start: number }>, scrollT
 }
 
 function OutlineIcon(): JSX.Element {
-  return (
-    <svg className="userOutline__svg" viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M5.75 4.25h8" />
-      <path d="M5.75 8h8" />
-      <path d="M5.75 11.75h8" />
-      <circle cx="2.5" cy="4.25" r="0.75" />
-      <circle cx="2.5" cy="8" r="0.75" />
-      <circle cx="2.5" cy="11.75" r="0.75" />
-    </svg>
-  )
+  return <MacIcon name="outline" className="userOutline__svg" />
 }
 
 function CollapseBlocksIcon(): JSX.Element {
-  return (
-    <svg className="blockToggle__icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M5.5 5.75h9" />
-      <path d="M4.75 10h10.5" />
-      <path d="M5.5 14.25h9" />
-    </svg>
-  )
+  return <MacIcon name="collapse" className="blockToggle__icon" />
 }
 
 function ExpandBlocksIcon(): JSX.Element {
-  return (
-    <svg className="blockToggle__icon" viewBox="0 0 20 20" aria-hidden="true">
-      <rect x="4.25" y="3.75" width="11.5" height="12.5" rx="2" />
-      <path d="M7 7.5h6" />
-      <path d="M7 10h6" />
-      <path d="M7 12.5h3.75" />
-    </svg>
-  )
+  return <MacIcon name="expand" className="blockToggle__icon" />
 }
 
 export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch }: Props): JSX.Element {
@@ -210,11 +189,11 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
   }
 
   return (
-    <div className="sessionView">
+    <div className="sessionView detail__body">
       <div className="userOutlineWrap" ref={outlineWrapRef}>
-        <div className="userOutlineBar" aria-label="User message outline">
+        <div className="userOutlineBar inspbar" aria-label="User message outline">
           <button
-            className={`userOutline__iconBtn${outlineOpen ? ' userOutline__iconBtn--active' : ''}`}
+            className={`userOutline__iconBtn inspbar__btn${outlineOpen ? ' userOutline__iconBtn--active inspbar__btn--on' : ''}`}
             type="button"
             disabled={userEntries.length === 0}
             title="Show user message outline"
@@ -224,17 +203,19 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
           >
             <OutlineIcon />
           </button>
-          <div className="userOutline__summary">
-            <span className="userOutline__summaryLabel">
-              {currentUserOrdinal >= 0 ? `User message · ${currentUserOrdinal + 1}` : 'User message'}
+          <div className="userOutline__summary inspbar__sum">
+            <span className="userOutline__summaryLabel inspbar__label">
+              {currentUserOrdinal >= 0
+                ? `User message · ${currentUserOrdinal + 1} / ${userEntries.length}`
+                : 'User message'}
             </span>
-            <span className="userOutline__summaryText">
+            <span className="userOutline__summaryText inspbar__text">
               {currentUserEntry ? currentUserEntry.label : 'No user messages'}
             </span>
           </div>
-          <div className="blockToggle" aria-label="Transcript block display">
+          <div className="blockToggle segmented segmented--blocks" aria-label="Transcript block display">
             <button
-              className={`blockToggle__btn${blockOpenMode === 'collapsed' ? ' blockToggle__btn--active' : ''}`}
+              className={`blockToggle__btn seg seg--icon${blockOpenMode === 'collapsed' ? ' blockToggle__btn--active seg--on' : ''}`}
               type="button"
               title={blockOpenMode === 'collapsed' ? 'Restore default blocks' : 'Collapse all blocks'}
               aria-label={blockOpenMode === 'collapsed' ? 'Restore default blocks' : 'Collapse all blocks'}
@@ -244,7 +225,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
               <CollapseBlocksIcon />
             </button>
             <button
-              className={`blockToggle__btn${blockOpenMode === 'expanded' ? ' blockToggle__btn--active' : ''}`}
+              className={`blockToggle__btn seg seg--icon${blockOpenMode === 'expanded' ? ' blockToggle__btn--active seg--on' : ''}`}
               type="button"
               title={blockOpenMode === 'expanded' ? 'Restore default blocks' : 'Unfold all blocks'}
               aria-label={blockOpenMode === 'expanded' ? 'Restore default blocks' : 'Unfold all blocks'}
@@ -257,11 +238,13 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
         </div>
 
         {outlineOpen ? (
-          <div className="userOutlinePopover" ref={outlineRef} role="menu" aria-label="User messages">
+          <div className="userOutlinePopover outlinepop" ref={outlineRef} role="menu" aria-label="User messages">
             {userEntries.map((entry, ordinal) => (
               <button
                 key={entry.index}
-                className={`userOutline__item${entry.index === currentUserIndex ? ' userOutline__item--active' : ''}`}
+                className={`userOutline__item outline-item${
+                  entry.index === currentUserIndex ? ' userOutline__item--active outline-item--active' : ''
+                }`}
                 type="button"
                 role="menuitem"
                 data-user-index={entry.index}
@@ -271,8 +254,8 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
                   setOutlineOpen(false)
                 }}
               >
-                <span className="userOutline__number">{ordinal + 1}</span>
-                <span className="userOutline__text">{entry.label}</span>
+                <span className="userOutline__number outline-item__num">{ordinal + 1}</span>
+                <span className="userOutline__text outline-item__txt">{entry.label}</span>
               </button>
             ))}
           </div>
@@ -280,7 +263,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
       </div>
 
       <div className="transcript" ref={parentRef}>
-        <div style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
+        <div className="transcript__inner" style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualItems.map((item) => {
             const hitOrdinals = searchHitsByNode.get(item.index)
             const activeOrdinal = activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : undefined

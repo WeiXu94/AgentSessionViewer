@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
 import { type DisplayRow, metaKey } from '../util'
+import { Tri } from './MacIcons'
 import { SessionRow } from './SessionRow'
 
 interface Props {
@@ -25,7 +26,7 @@ export function SessionList({
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (rows[index]?.kind === 'group' ? 30 : 72),
+    estimateSize: (index) => (rows[index]?.kind === 'group' ? 34 : 54),
     overscan: 12
   })
 
@@ -60,17 +61,17 @@ export function SessionList({
               }}
             >
               {row.kind === 'group' ? (
-                <div className="group-row">
+                <div className={`group-row grouphdr${row.collapsed ? ' grouphdr--closed' : ''}`}>
                   <button
-                    className={`group-row__caret${row.collapsed ? '' : ' group-row__caret--open'}`}
+                    className={`group-row__caret grouphdr__tri${row.collapsed ? '' : ' group-row__caret--open'}`}
                     type="button"
                     onClick={() => onToggleGroup(row.id)}
                     title={row.collapsed ? 'Expand group' : 'Collapse group'}
                   >
-                    ▶
+                    <Tri />
                   </button>
-                  <span className="group-row__title">{row.title}</span>
-                  <span className="group-row__count">{row.count}</span>
+                  <span className="group-row__title grouphdr__title">{row.title}</span>
+                  <span className="group-row__count grouphdr__count">{row.count}</span>
                 </div>
               ) : (
                 <SessionRow

@@ -1,9 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { SessionMeta, TranscriptPayload } from '../../shared/ipc'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react'
+import type { SessionMeta, TranscriptPayload, ViewNode } from '../../shared/ipc'
 import { FilterBar } from './components/FilterBar'
+import { MacIcon } from './components/MacIcons'
+import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
-import { buildRows, type GroupMode, metaKey } from './util'
+import { accentForeground, buildRows, type GroupMode, metaKey } from './util'
 
 type RowMenuAction = 'copy-resume' | 'copy-id' | 'copy-path' | 'reveal' | 'open-cwd' | 'filter-project'
 
@@ -11,6 +21,48 @@ interface RowMenuState {
   session: SessionMeta
   x: number
   y: number
+}
+
+interface SessionSearchMatch {
+  nodeIndex: number
+  ordinalInNode: number
+}
+
+function countPartMatches(
+  text: string,
+  query: string,
+  startOrdinal: number,
+  nodeIndex: number,
+  matches: SessionSearchMatch[]
+): number {
+  if (!query) return startOrdinal
+
+  const lower = text.toLowerCase()
+  let from = 0
+  let ordinal = startOrdinal
+
+  for (;;) {
+    const index = lower.indexOf(query, from)
+    if (index === -1) break
+    matches.push({ nodeIndex, ordinalInNode: ordinal })
+    ordinal++
+    from = index + query.length
+  }
+
+  return ordinal
+}
+
+function buildSearchMatches(nodes: ViewNode[], rawQuery: string): SessionSearchMatch[] {
+  const query = rawQuery.trim().toLowerCase()
+  if (!query) return []
+
+  const matches: SessionSearchMatch[] = []
+  nodes.forEach((node, nodeIndex) => {
+    const displayTitle = node.title || node.toolName || ''
+    const bodyStartOrdinal = countPartMatches(displayTitle, query, 0, nodeIndex, matches)
+    countPartMatches(displayNodeText(node.text), query, bodyStartOrdinal, nodeIndex, matches)
+  })
+  return matches
 }
 
 export function App(): JSX.Element {
@@ -29,19 +81,43 @@ export function App(): JSX.Element {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
+  const [sessionSearchText, setSessionSearchText] = useState('')
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
 
   const reqRef = useRef(0)
   const rowMenuRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
+    setRefreshing(true)
     const list = await window.api.list(force)
     setSessions(list)
     setLoadingList(false)
+    window.setTimeout(() => setRefreshing(false), 260)
   }
 
   useEffect(() => {
     void refresh(false)
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    const applyAccent = (accent: string): void => {
+      if (!/^#[\da-f]{6}$/iu.test(accent)) return
+      document.documentElement.style.setProperty('--accent', accent)
+      document.documentElement.style.setProperty('--accent-fg', accentForeground(accent))
+    }
+
+    window.api.getAccentColor().then((accent) => {
+      if (!disposed) applyAccent(accent)
+    })
+    const removeListener = window.api.onAccentColorChanged(applyAccent)
+    return () => {
+      disposed = true
+      removeListener()
+    }
   }, [])
 
   useEffect(() => {
@@ -79,9 +155,16 @@ export function App(): JSX.Element {
     })
   }, [selected?.source, selected?.id, selected?.originalPath])
 
+  useEffect(() => {
+    setSessionSearchText('')
+    setActiveMatchIndex(0)
+    setTab('session')
+  }, [selected?.source, selected?.id])
+
   const sources = useMemo(() => {
     const m = new Map<string, { label: string; count: number }>()
     for (const s of sessions) {
+      if (s.variant === 'subagent') continue
       const e = m.get(s.source) ?? { label: s.sourceLabel, count: 0 }
       e.count++
       m.set(s.source, e)
@@ -118,6 +201,67 @@ export function App(): JSX.Element {
     setSelected(session)
     setTab('session')
     setRowMenu(null)
+  }
+
+  const visibleCount = filtered.filter((s) => s.variant !== 'subagent').length
+  const totalCount = sessions.filter((s) => s.variant !== 'subagent').length
+  const searchQuery = sessionSearchText.trim()
+  const searchMatches = useMemo(
+    () => (transcript && !transcript.error ? buildSearchMatches(transcript.nodes, searchQuery) : []),
+    [transcript?.nodes, transcript?.error, searchQuery]
+  )
+  const activeSearchIndex = searchMatches.length ? Math.min(activeMatchIndex, searchMatches.length - 1) : -1
+  const activeMatch = activeSearchIndex >= 0 ? searchMatches[activeSearchIndex] : null
+  const searchHitsByNode = useMemo(() => {
+    const hits = new Map<number, Set<number>>()
+    for (const match of searchMatches) {
+      const ordinals = hits.get(match.nodeIndex) ?? new Set<number>()
+      ordinals.add(match.ordinalInNode)
+      hits.set(match.nodeIndex, ordinals)
+    }
+    return hits
+  }, [searchMatches])
+
+  const canSearchTranscript = !!transcript && !transcript.error && transcript.nodes.length > 0
+
+  const moveSearch = useCallback(
+    (delta: number): void => {
+      if (searchMatches.length === 0) return
+      setTab('session')
+      setActiveMatchIndex((prev) => (prev + delta + searchMatches.length) % searchMatches.length)
+    },
+    [searchMatches.length]
+  )
+
+  useEffect(() => {
+    setActiveMatchIndex(0)
+  }, [transcript?.nodes, searchQuery])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setTab('session')
+        requestAnimationFrame(() => {
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        })
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      moveSearch(event.shiftKey ? -1 : 1)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      if (sessionSearchText) setSessionSearchText('')
+      else event.currentTarget.blur()
+    }
   }
 
   function toggleExpand(id: string): void {
@@ -189,21 +333,83 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className="app">
-      <div className="titlebar">
-        <span className="titlebar__title">AgentSessionViewer</span>
-        <span className="titlebar__count">
-          {filtered.length}
-          {filtered.length !== sessions.length ? ` / ${sessions.length}` : ''}
-        </span>
-        <span className="titlebar__spacer" />
-        <button className="iconbtn" onClick={() => void refresh(true)} title="Reload sessions">
-          ⟳
-        </button>
+    <div className="app" data-density="cozy" style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}>
+      <div className="toolbar">
+        <div className="toolbar__lead">
+          <span className="toolbar__appicon">
+            <MacIcon name="bolt" />
+          </span>
+          <span className="toolbar__title">AgentSessionViewer</span>
+        </div>
+        <div className="toolbar__sep" />
+        <div className="toolbar__main">
+          <span className="count-pill">
+            <b>{visibleCount}</b>
+            {visibleCount !== totalCount ? ` of ${totalCount}` : ''} sessions
+          </span>
+          <span className="toolbar__spacer" />
+          <div className={`find${canSearchTranscript ? '' : ' find--disabled'}`}>
+            <MacIcon name="search" className="find-i" />
+            <input
+              ref={searchInputRef}
+              value={sessionSearchText}
+              disabled={!canSearchTranscript}
+              onFocus={() => setTab('session')}
+              onChange={(event) => {
+                setTab('session')
+                setSessionSearchText(event.target.value)
+              }}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Find in session"
+              spellCheck={false}
+            />
+            <span className="find__count">
+              {searchQuery ? (searchMatches.length ? `${activeSearchIndex + 1} of ${searchMatches.length}` : '0') : ''}
+            </span>
+            <button
+              className="find__step"
+              type="button"
+              disabled={searchMatches.length === 0}
+              title="Previous match"
+              aria-label="Previous match"
+              onClick={() => moveSearch(-1)}
+            >
+              <MacIcon name="chevUp" />
+            </button>
+            <button
+              className="find__step"
+              type="button"
+              disabled={searchMatches.length === 0}
+              title="Next match"
+              aria-label="Next match"
+              onClick={() => moveSearch(1)}
+            >
+              <MacIcon name="chevDown" />
+            </button>
+          </div>
+          <div className="segmented" aria-label="Viewer tab">
+            <button className={`seg${tab === 'session' ? ' seg--on' : ''}`} onClick={() => setTab('session')}>
+              Session
+              <span className="seg__num">{transcript ? transcript.nodes.length : 0}</span>
+            </button>
+            <button className={`seg${tab === 'json' ? ' seg--on' : ''}`} onClick={() => setTab('json')}>
+              JSON
+              <span className="seg__num">{transcript ? transcript.records.length : 0}</span>
+            </button>
+          </div>
+          <button
+            className={`tbtn${refreshing ? ' tbtn--spin' : ''}`}
+            onClick={() => void refresh(true)}
+            title="Reload sessions"
+            aria-label="Reload sessions"
+          >
+            <MacIcon name="reload" />
+          </button>
+        </div>
       </div>
 
-      <div className="body">
-        <aside className="sidebar" style={{ width: sidebarW }}>
+      <div className="body mac-body">
+        <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
           <FilterBar
             text={text}
             source={source}
@@ -216,7 +422,7 @@ export function App(): JSX.Element {
             onGroupMode={setGroupMode}
           />
           {loadingList ? (
-            <div className="list list--empty">Scanning agent histories…</div>
+            <div className="list list--empty">Scanning agent histories...</div>
           ) : (
             <SessionList
               rows={rows}
@@ -229,17 +435,19 @@ export function App(): JSX.Element {
           )}
         </aside>
 
-        <div className="divider" onMouseDown={startDrag} />
+        <div className="divider mac-divider" onMouseDown={startDrag} />
 
-        <main className="main">
+        <main className="main mac-detail">
           <Viewer
             session={selected}
             transcript={transcript}
             loading={loadingTx}
             tab={tab}
-            setTab={setTab}
             parentSession={selectedForkParent}
             onJumpToParent={selectedForkParent ? () => jumpToSession(selectedForkParent) : undefined}
+            searchQuery={searchQuery}
+            searchHitsByNode={searchHitsByNode}
+            activeMatch={activeMatch}
             onReveal={() => {
               if (selected) void window.api.reveal(selected.originalPath)
             }}
@@ -250,64 +458,66 @@ export function App(): JSX.Element {
       {rowMenu ? (
         <div
           ref={rowMenuRef}
-          className="dropdownMenu contextMenu"
+          className="dropdownMenu contextMenu menu ctxmenu"
           role="menu"
           style={{ left: rowMenu.x, top: rowMenu.y }}
           onContextMenu={(event) => event.preventDefault()}
         >
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.resumeCommand}
             onClick={() => void runRowMenuAction('copy-resume')}
           >
-            Copy Resume Command
+            <span className="menu__txt">Copy Resume Command</span>
           </button>
-          <div className="dropdownMenu__separator" />
+          <div className="dropdownMenu__separator menu__sep" />
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-id')}
           >
-            Copy Session ID
+            <span className="menu__txt">Copy Session ID</span>
           </button>
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-path')}
           >
-            Copy Path
+            <span className="menu__txt">Copy Path</span>
           </button>
-          <div className="dropdownMenu__separator" />
+          <div className="dropdownMenu__separator menu__sep" />
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('reveal')}
           >
-            Reveal Session Log in Finder
+            <span className="menu__txt">Reveal Session Log in Finder</span>
           </button>
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.cwd}
             onClick={() => void runRowMenuAction('open-cwd')}
           >
-            Open Working Directory
+            <span className="menu__txt">Open Working Directory</span>
           </button>
-          <div className="dropdownMenu__separator" />
+          <div className="dropdownMenu__separator menu__sep" />
           <button
-            className="dropdownMenu__item"
+            className="dropdownMenu__item menu__item"
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.repo}
             onClick={() => void runRowMenuAction('filter-project')}
           >
-            {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
+            <span className="menu__txt">
+              {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
+            </span>
           </button>
         </div>
       ) : null}

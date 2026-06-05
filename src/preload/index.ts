@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import type { SessionsAPI } from '../shared/ipc.js'
 
 const api: SessionsAPI = {
@@ -6,7 +7,13 @@ const api: SessionsAPI = {
   loadTranscript: (originalPath, source, id) => ipcRenderer.invoke('transcript:load', originalPath, source, id),
   reveal: (p) => ipcRenderer.invoke('shell:reveal', p),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
-  copy: (text) => ipcRenderer.invoke('clipboard:write', text)
+  copy: (text) => ipcRenderer.invoke('clipboard:write', text),
+  getAccentColor: () => ipcRenderer.invoke('system:accentColor'),
+  onAccentColorChanged: (callback) => {
+    const listener = (_event: IpcRendererEvent, accent: string): void => callback(accent)
+    ipcRenderer.on('system:accentColorChanged', listener)
+    return () => ipcRenderer.removeListener('system:accentColorChanged', listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

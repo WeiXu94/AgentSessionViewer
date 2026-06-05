@@ -24,6 +24,16 @@ export function sourceColor(source: string): string {
   return SOURCE_COLORS[source] ?? '#8b949e'
 }
 
+export function shadeHex(hex: string, amount: number): string {
+  const normalized = /^#[\da-f]{6}$/iu.test(hex) ? hex : '#8b949e'
+  const n = Number.parseInt(normalized.slice(1), 16)
+  const clamp = (value: number): number => Math.max(0, Math.min(255, value))
+  const r = clamp((n >> 16) + amount)
+  const g = clamp(((n >> 8) & 255) + amount)
+  const b = clamp((n & 255) + amount)
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
+
 const SOURCE_NAMES: Record<string, string> = {
   claude: 'Claude',
   codex: 'Codex',
@@ -47,6 +57,22 @@ const SOURCE_NAMES: Record<string, string> = {
 /** Clean base name for the badge — variant (cli/desk) is shown as a separate chip. */
 export function sourceName(source: string): string {
   return SOURCE_NAMES[source] ?? source
+}
+
+export function sourceInitials(source: string): string {
+  const name = sourceName(source)
+  const words = name.split(/[\s-]+/u).filter(Boolean)
+  if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase()
+  return name.slice(0, Math.min(2, name.length)).toUpperCase()
+}
+
+export function accentForeground(accent: string): string {
+  const hex = /^#[\da-f]{6}$/iu.test(accent) ? accent.slice(1) : '007aff'
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+  return luminance > 0.68 ? '#1d1d1f' : '#ffffff'
 }
 
 export function fmtTime(ms: number): string {
