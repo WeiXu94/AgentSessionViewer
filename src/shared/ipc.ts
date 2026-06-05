@@ -27,6 +27,8 @@ export interface SessionMeta {
   parentId?: string
   /** For subagents: the agent type (e.g. "Explore"). */
   subagentType?: string
+  /** For forked sessions: the source session id this session branched from. */
+  forkParentId?: string
 }
 
 export type NodeKind =
@@ -51,6 +53,10 @@ export interface ViewNode {
   rawIndex: number
   /** UTF-8 byte length of `text` (renderer collapses oversized nodes). */
   bytes: number
+  /** True when this node came from copied parent history in a forked transcript. */
+  inherited?: boolean
+  /** Parent session id for inherited fork nodes. */
+  inheritedFromId?: string
 }
 
 export interface TranscriptPayload {

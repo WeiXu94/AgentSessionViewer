@@ -57,7 +57,8 @@ function toMeta(s: UnifiedSession): SessionMeta {
     variant: s.variant,
     variantLabel,
     parentId: s.parentId,
-    subagentType: s.subagentType
+    subagentType: s.subagentType,
+    forkParentId: s.forkParentId
   }
 }
 

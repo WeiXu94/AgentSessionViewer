@@ -61,6 +61,7 @@ export const SessionRow = memo(function SessionRow({
                 {sourceName(session.source)}
               </span>
               {session.variantLabel ? <span className="vchip">{session.variantLabel}</span> : null}
+              {session.forkParentId ? <span className="vchip">fork</span> : null}
             </>
           )}
           {session.repo ? <span className="row__repo">{session.repo}</span> : null}

@@ -43,6 +43,8 @@ export interface UnifiedSession {
   parentId?: string;
   /** For subagents: the agent type (e.g. "Explore", "general"). */
   subagentType?: string;
+  /** For forked sessions: the source session id this session branched from. */
+  forkParentId?: string;
 }
 
 /** Options for session discovery/indexing. Parsers may ignore unsupported filters. */

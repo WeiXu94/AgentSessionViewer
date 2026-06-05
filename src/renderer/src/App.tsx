@@ -97,7 +97,8 @@ export function App(): JSX.Element {
       if (source && s.source !== source) return false
       if (project && s.repo !== project) return false
       if (q) {
-        const hay = `${s.summary ?? ''} ${s.repo ?? ''} ${s.cwd} ${s.id} ${s.sourceLabel} ${s.source}`.toLowerCase()
+        const hay =
+          `${s.summary ?? ''} ${s.repo ?? ''} ${s.cwd} ${s.id} ${s.forkParentId ?? ''} ${s.sourceLabel} ${s.source}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -108,6 +109,16 @@ export function App(): JSX.Element {
     () => buildRows(filtered, sessions, 'tree', expanded, groupMode, collapsedGroups),
     [filtered, sessions, expanded, groupMode, collapsedGroups]
   )
+  const selectedForkParent = useMemo(() => {
+    if (!selected?.forkParentId) return null
+    return sessions.find((session) => session.source === selected.source && session.id === selected.forkParentId) ?? null
+  }, [selected?.source, selected?.forkParentId, sessions])
+
+  function jumpToSession(session: SessionMeta): void {
+    setSelected(session)
+    setTab('session')
+    setRowMenu(null)
+  }
 
   function toggleExpand(id: string): void {
     setExpanded((prev) => {
@@ -227,6 +238,8 @@ export function App(): JSX.Element {
             loading={loadingTx}
             tab={tab}
             setTab={setTab}
+            parentSession={selectedForkParent}
+            onJumpToParent={selectedForkParent ? () => jumpToSession(selectedForkParent) : undefined}
             onReveal={() => {
               if (selected) void window.api.reveal(selected.originalPath)
             }}

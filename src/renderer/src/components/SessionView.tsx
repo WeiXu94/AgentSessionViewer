@@ -23,7 +23,8 @@ interface Props {
 type BlockOpenMode = 'default' | 'collapsed' | 'expanded'
 
 function compactStickyText(node: ViewNode): string {
-  return displayNodeText(node.text).replace(/\s+/g, ' ').trim() || node.title || 'User'
+  const text = displayNodeText(node.text).replace(/\s+/g, ' ').trim() || node.title || 'User'
+  return node.inherited ? `[parent] ${text}` : text
 }
 
 function currentUserAt(userIndexes: number[], topIndex: number): number {

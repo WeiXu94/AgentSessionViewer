@@ -6,7 +6,7 @@ import { app } from 'electron'
 import { adapters, ALL_TOOLS } from './sessions/parsers/registry.js'
 import type { SessionSource, UnifiedSession } from './sessions/types/index.js'
 
-const CACHE_VERSION = 1
+const CACHE_VERSION = 3
 const CACHE_FILE = 'session-metadata-cache.json'
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const MAX_ANCESTOR_FINGERPRINTS_PER_SESSION = 6
@@ -37,6 +37,7 @@ interface CachedUnifiedSession {
   variant?: UnifiedSession['variant']
   parentId?: string
   subagentType?: string
+  forkParentId?: string
 }
 
 interface CacheFile {
@@ -185,7 +186,8 @@ function serializeSession(session: UnifiedSession): CachedUnifiedSession {
     model: session.model,
     variant: session.variant,
     parentId: session.parentId,
-    subagentType: session.subagentType
+    subagentType: session.subagentType,
+    forkParentId: session.forkParentId
   }
 }
 

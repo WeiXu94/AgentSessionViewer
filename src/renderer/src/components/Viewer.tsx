@@ -11,6 +11,8 @@ interface Props {
   loading: boolean
   tab: 'session' | 'json'
   setTab: (t: 'session' | 'json') => void
+  parentSession?: SessionMeta | null
+  onJumpToParent?: () => void
   onReveal: () => void
 }
 
@@ -85,7 +87,25 @@ function CloseIcon(): JSX.Element {
   )
 }
 
-export function Viewer({ session, transcript, loading, tab, setTab, onReveal }: Props): JSX.Element {
+function JumpToParentIcon(): JSX.Element {
+  return (
+    <svg className="viewerFork__jumpIcon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M5.5 4.5h6v6" />
+      <path d="m11.25 4.75-7 7" />
+    </svg>
+  )
+}
+
+export function Viewer({
+  session,
+  transcript,
+  loading,
+  tab,
+  setTab,
+  parentSession,
+  onJumpToParent,
+  onReveal
+}: Props): JSX.Element {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [searchText, setSearchText] = useState('')
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
@@ -155,6 +175,13 @@ export function Viewer({ session, transcript, loading, tab, setTab, onReveal }: 
     return <div className="viewer viewer--empty">Select a session to view its transcript.</div>
   }
 
+  const forkTooltip = session.forkParentId
+    ? [
+        parentSession ? `Parent: ${sessionTitle(parentSession)}` : 'Parent: not indexed',
+        `Parent ID: ${session.forkParentId}`
+      ].join('\n')
+    : ''
+
   return (
     <div className="viewer">
       <header className="viewer__header">
@@ -164,6 +191,23 @@ export function Viewer({ session, transcript, loading, tab, setTab, onReveal }: 
             {sourceName(session.source)}
           </span>
           {session.variantLabel ? <span className="vchip">{session.variantLabel}</span> : null}
+          {session.forkParentId ? (
+            <span className="viewerForkInline">
+              <span className="vchip viewerForkChip" data-tooltip={forkTooltip} aria-label={forkTooltip}>
+                fork
+              </span>
+              <button
+                className="viewerFork__jump"
+                type="button"
+                disabled={!parentSession || !onJumpToParent}
+                title={parentSession ? 'Jump to parent session' : 'Parent session not found'}
+                aria-label={parentSession ? 'Jump to parent session' : 'Parent session not found'}
+                onClick={onJumpToParent}
+              >
+                <JumpToParentIcon />
+              </button>
+            </span>
+          ) : null}
           {session.repo ? <span>{session.repo}</span> : null}
           {session.branch ? <span>⎇ {session.branch}</span> : null}
           {session.model ? <span>{session.model}</span> : null}

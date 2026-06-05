@@ -25,7 +25,7 @@ export function SessionList({
   const virt = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (rows[index]?.kind === 'group' ? 30 : 62),
+    estimateSize: (index) => (rows[index]?.kind === 'group' ? 30 : 72),
     overscan: 12
   })
 

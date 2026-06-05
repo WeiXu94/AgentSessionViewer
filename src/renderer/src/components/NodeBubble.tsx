@@ -84,6 +84,7 @@ export const NodeBubble = memo(function NodeBubble({
   const bubbleClass = [
     'bubble',
     `bubble--${node.kind}`,
+    node.inherited ? 'bubble--inherited' : '',
     hasSearchMatch ? 'bubble--search-hit' : '',
     activeMatchOrdinal !== undefined ? 'bubble--search-active' : ''
   ]
@@ -96,7 +97,10 @@ export const NodeBubble = memo(function NodeBubble({
 
     return (
       <div className={bubbleClass}>
-        <div className="bubble__head">{title}</div>
+        <div className="bubble__head">
+          {node.inherited ? <span className="bubble__inherit">Inherited</span> : null}
+          {title}
+        </div>
         <div className="bubble__text">{body}</div>
       </div>
     )
@@ -113,6 +117,7 @@ export const NodeBubble = memo(function NodeBubble({
         <summary className="bubble__summary">
           <span className="bubble__icon">{ICON[node.kind] ?? '•'}</span>
           <span className="bubble__title">{title}</span>
+          {node.inherited ? <span className="bubble__inherit">Inherited</span> : null}
           <span className="bubble__size">{fmtBytes(node.bytes)}</span>
         </summary>
         <pre className="bubble__pre">{body}</pre>

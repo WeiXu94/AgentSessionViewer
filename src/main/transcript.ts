@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import type { TranscriptPayload, ViewNode } from '../shared/ipc.js'
 import { getSession } from './indexer.js'
-import { claudeNodes } from './mappers/claude.js'
+import { claudeNodes, claudeTranscriptNodes } from './mappers/claude.js'
 import { codexNodes } from './mappers/codex.js'
 import { genericNodes, reconstructPayload } from './mappers/generic.js'
 import { loadOpenCodePayload } from './mappers/opencode.js'
@@ -43,7 +43,7 @@ function toRecordArray(raw: unknown): unknown[] {
   return []
 }
 
-function nodesFor(source: string, records: unknown[]): ViewNode[] {
+function nodesFor(source: string, records: unknown[], id = ''): ViewNode[] {
   if (source === 'claude') return claudeNodes(records)
   if (source === 'codex') return codexNodes(records)
   if (source === 'pi') return piNodes(records)
@@ -70,13 +70,14 @@ export async function loadTranscript(originalPath: string, source: string, id: s
     // is a per-session text file (not a shared SQLite db like opencode/crush).
     if (isFile && lower.endsWith('.jsonl')) {
       const { records, truncated } = await readJsonlRecords(originalPath)
-      return { source, originalPath, reconstructed: false, records, nodes: nodesFor(source, records), truncated }
+      const nodes = source === 'claude' ? claudeTranscriptNodes(records, id) : nodesFor(source, records, id)
+      return { source, originalPath, reconstructed: false, records, nodes, truncated }
     }
 
     if (isFile && lower.endsWith('.json')) {
       const raw = JSON.parse(fs.readFileSync(originalPath, 'utf8'))
       const records = toRecordArray(raw)
-      return { source, originalPath, reconstructed: false, records, nodes: nodesFor(source, records) }
+      return { source, originalPath, reconstructed: false, records, nodes: nodesFor(source, records, id) }
     }
 
     return await reconstructPayload(source, originalPath, getSession(source, id))

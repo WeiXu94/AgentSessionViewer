@@ -15,7 +15,7 @@ import type {
 import type { ClaudeMessage } from '../types/schemas.js';
 import { extractTextFromBlocks, isRealUserMessage } from '../utils/content.js';
 import { findFiles, mapConcurrent } from '../utils/fs-helpers.js';
-import { getFileStats, readJsonlFile, scanJsonlFile, scanJsonlHead } from '../utils/jsonl.js';
+import { getFileStats, readJsonlFile, scanJsonlFile } from '../utils/jsonl.js';
 import { generateHandoffMarkdown, safePath } from '../utils/markdown.js';
 import { cleanSummary, extractRepoFromCwd, homeDir, trimMessages } from '../utils/parser-helpers.js';
 import { matchesCwd } from '../utils/slug.js';
@@ -86,45 +86,91 @@ function detectClaudeSubagent(
  */
 async function parseSessionInfo(
   filePath: string,
-  options: SessionParseOptions = {},
 ): Promise<{
   sessionId: string;
   cwd: string;
   gitBranch?: string;
+  customTitle?: string;
   firstUserMessage: string;
   firstTimestamp?: string;
   lastTimestamp?: string;
   entrypoint?: string;
+  forkParentId?: string;
 }> {
-  let sessionId = '';
+  const fileSessionId = path.basename(filePath, '.jsonl');
+  const hasFileSessionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(
+    fileSessionId,
+  );
+  const targetSessionId = hasFileSessionId ? fileSessionId : '';
+
+  let sessionId = targetSessionId;
+  let fallbackSessionId = '';
   let cwd = '';
+  let fallbackCwd = '';
   let gitBranch = '';
+  let fallbackGitBranch = '';
+  let customTitle = '';
   let firstUserMessage = '';
+  let fallbackFirstUserMessage = '';
+  let forkParentId = '';
   let firstTimestamp = '';
+  let fallbackFirstTimestamp = '';
   let lastTimestamp = '';
+  let fallbackLastTimestamp = '';
   let entrypoint = '';
+  let fallbackEntrypoint = '';
   let firstTimeMs = Number.POSITIVE_INFINITY;
+  let fallbackFirstTimeMs = Number.POSITIVE_INFINITY;
   let lastTimeMs = Number.NEGATIVE_INFINITY;
+  let fallbackLastTimeMs = Number.NEGATIVE_INFINITY;
 
   const visitor = (parsed: unknown): 'continue' | 'stop' => {
     if (typeof parsed !== 'object' || parsed === null) return 'continue';
     const msg = parsed as ClaudeMessage;
-    if (msg.sessionId && !sessionId) sessionId = msg.sessionId;
-    if (msg.cwd && !cwd) cwd = msg.cwd;
-    if (msg.gitBranch && !gitBranch) gitBranch = msg.gitBranch;
+    if (msg.sessionId && !fallbackSessionId) fallbackSessionId = msg.sessionId;
+    const isTargetRecord = !targetSessionId || msg.sessionId === targetSessionId;
+    if (targetSessionId && msg.sessionId && msg.sessionId !== targetSessionId && !forkParentId) {
+      forkParentId = msg.sessionId;
+    }
+    if (msg.cwd && !fallbackCwd) fallbackCwd = msg.cwd;
+    if (msg.cwd && isTargetRecord && !cwd) cwd = msg.cwd;
+    if (msg.gitBranch && !fallbackGitBranch) fallbackGitBranch = msg.gitBranch;
+    if (msg.gitBranch && isTargetRecord && !gitBranch) gitBranch = msg.gitBranch;
     const ep = (parsed as Record<string, unknown>).entrypoint;
-    if (typeof ep === 'string' && ep && !entrypoint) entrypoint = ep;
+    if (typeof ep === 'string' && ep && !fallbackEntrypoint) fallbackEntrypoint = ep;
+    if (typeof ep === 'string' && ep && isTargetRecord && !entrypoint) entrypoint = ep;
+    const rawForkedFrom = (parsed as Record<string, unknown>).forkedFrom;
+    if (!forkParentId && rawForkedFrom && typeof rawForkedFrom === 'object') {
+      const rawParentId = (rawForkedFrom as Record<string, unknown>).sessionId;
+      if (typeof rawParentId === 'string' && rawParentId && rawParentId !== targetSessionId) {
+        forkParentId = rawParentId;
+      }
+    }
+    const rawCustomTitle = (parsed as Record<string, unknown>).customTitle;
+    if (isTargetRecord && typeof rawCustomTitle === 'string' && rawCustomTitle.trim()) {
+      customTitle = rawCustomTitle;
+    }
     const timestamp = getClaudeMessageTimestamp(msg);
     if (timestamp) {
       const timeMs = Date.parse(timestamp);
       if (!Number.isNaN(timeMs)) {
-        if (timeMs < firstTimeMs) {
-          firstTimeMs = timeMs;
-          firstTimestamp = timestamp;
+        if (timeMs < fallbackFirstTimeMs) {
+          fallbackFirstTimeMs = timeMs;
+          fallbackFirstTimestamp = timestamp;
         }
-        if (timeMs > lastTimeMs) {
-          lastTimeMs = timeMs;
-          lastTimestamp = timestamp;
+        if (timeMs > fallbackLastTimeMs) {
+          fallbackLastTimeMs = timeMs;
+          fallbackLastTimestamp = timestamp;
+        }
+        if (isTargetRecord) {
+          if (timeMs < firstTimeMs) {
+            firstTimeMs = timeMs;
+            firstTimestamp = timestamp;
+          }
+          if (timeMs > lastTimeMs) {
+            lastTimeMs = timeMs;
+            lastTimestamp = timestamp;
+          }
         }
       }
     }
@@ -132,24 +178,30 @@ async function parseSessionInfo(
     if (!firstUserMessage && msg.type === 'user' && msg.message?.content) {
       const content = stripClaudeLocalCommandMarkup(extractTextFromBlocks(msg.message.content));
       if (isRealUserMessage(content)) {
-        firstUserMessage = content;
+        if (!fallbackFirstUserMessage) fallbackFirstUserMessage = content;
+        if (isTargetRecord) firstUserMessage = content;
       }
     }
-    if (options.lightweight && sessionId && cwd && firstUserMessage) return 'stop';
     return 'continue';
   };
 
-  if (options.lightweight) {
-    await scanJsonlHead(filePath, 50, visitor);
-  } else {
-    await scanJsonlFile(filePath, visitor);
-  }
+  await scanJsonlFile(filePath, visitor);
 
   if (!sessionId) {
-    sessionId = path.basename(filePath, '.jsonl');
+    sessionId = fallbackSessionId || fileSessionId;
   }
 
-  return { sessionId, cwd, gitBranch, firstUserMessage, firstTimestamp, lastTimestamp, entrypoint };
+  return {
+    sessionId,
+    cwd: cwd || fallbackCwd,
+    gitBranch: gitBranch || fallbackGitBranch,
+    customTitle,
+    firstUserMessage: firstUserMessage || fallbackFirstUserMessage,
+    firstTimestamp: firstTimestamp || fallbackFirstTimestamp,
+    lastTimestamp: lastTimestamp || fallbackLastTimestamp,
+    entrypoint: entrypoint || fallbackEntrypoint,
+    forkParentId,
+  };
 }
 
 /**
@@ -159,14 +211,17 @@ export async function parseClaudeSessions(options: SessionParseOptions = {}): Pr
   const files = await findSessionFiles(options);
   const parsedSessions = await mapConcurrent(files, 16, async (filePath): Promise<UnifiedSession | null> => {
     try {
-      const info = await parseSessionInfo(filePath, options);
+      const info = await parseSessionInfo(filePath);
       if (options.cwd && info.cwd && !matchesCwd(info.cwd, options.cwd)) return null;
 
       const fileStats = fs.statSync(filePath);
       const stats = options.lightweight ? { lines: 0, bytes: fileStats.size } : await getFileStats(filePath);
 
       const subagent = detectClaudeSubagent(filePath);
-      const summary = cleanSummary(info.firstUserMessage) || (subagent?.description ? cleanSummary(subagent.description) : '');
+      const summary =
+        cleanSummary(info.customTitle || '', 80) ||
+        cleanSummary(info.firstUserMessage) ||
+        (subagent?.description ? cleanSummary(subagent.description) : '');
       const repo = extractRepoFromCwd(info.cwd);
       const variant: UnifiedSession['variant'] = subagent
         ? 'subagent'
@@ -189,6 +244,7 @@ export async function parseClaudeSessions(options: SessionParseOptions = {}): Pr
         variant,
         parentId: subagent?.parentId,
         subagentType: subagent?.subagentType,
+        forkParentId: info.forkParentId || undefined,
       };
     } catch (err) {
       logger.debug('claude: skipping unparseable session', filePath, err);
