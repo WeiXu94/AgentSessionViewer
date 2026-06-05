@@ -9,6 +9,8 @@ Built because the original stuttered when rendering large transcripts / raw JSON
 parses an **18 MB Codex session in ~33 ms** and a **7.6 MB Claude session in ~16 ms**, then renders
 with a windowed (virtualized) list + transcript so only visible rows ever hit the DOM.
 
+![AgentSessionViewer](assets/Screenshot-2026-06-05.png)
+
 ## Run
 
 ```bash

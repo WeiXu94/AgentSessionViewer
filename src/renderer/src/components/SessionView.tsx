@@ -90,6 +90,15 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
     const scrollTop = parentRef.current?.scrollTop ?? 0
     updateTopIndex(virt.getVirtualItemForOffset(scrollTop + 1)?.index ?? 0)
   }, [updateTopIndex, virt])
+  // react-virtual skips its ref-callback measurement while the list is
+  // scrolling and never revisits a row that mounted at the estimated height.
+  // Auto-opened blocks (bash/read tool calls, search-hit expansions) are much
+  // taller than the estimate, so after a fast scroll the following rows overlap
+  // them. Re-measure the rendered rows on demand (callers invoke this once
+  // scrolling has settled, when the measurement gate is open again).
+  const remeasureRendered = useCallback((): void => {
+    parentRef.current?.querySelectorAll<HTMLElement>('[data-index]').forEach((el) => virt.measureElement(el))
+  }, [virt])
   const jumpToIndex = useCallback(
     (index: number, align: 'start' | 'center' = 'start'): void => {
       const offset = virt.getOffsetForIndex(index, align)?.[0]
@@ -109,7 +118,6 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
       scrollToOffset()
       requestAnimationFrame(() => {
         scrollToOffset()
-        virt.measure()
         readTopIndex()
       })
     },
@@ -145,7 +153,12 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
     if (!scroller) return
 
     let frame = 0
+    let settle = 0
     const onScroll = (): void => {
+      // Debounced trailing re-measure: react-virtual resets its `isScrolling`
+      // flag 150ms after the last scroll, reopening the measurement gate.
+      if (settle) clearTimeout(settle)
+      settle = window.setTimeout(remeasureRendered, 200)
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
@@ -157,9 +170,10 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
     readTopIndex()
     return () => {
       if (frame) cancelAnimationFrame(frame)
+      if (settle) clearTimeout(settle)
       scroller.removeEventListener('scroll', onScroll)
     }
-  }, [readTopIndex])
+  }, [readTopIndex, remeasureRendered])
 
   useEffect(() => {
     if (!outlineOpen || currentUserIndex < 0) return
@@ -268,9 +282,17 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
             const hitOrdinals = searchHitsByNode.get(item.index)
             const activeOrdinal = activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : undefined
 
+            // A collapsible block auto-opens when it has a search hit or when
+            // block-open mode changes, growing in place. react-virtual only
+            // measures via the ref callback on (re)mount and doesn't reliably
+            // re-measure that in-place growth, so following rows overlap the
+            // expanded block. Fold the open-affecting state into the React key
+            // to force a remount — and thus a fresh measurement — on change.
+            const openKey = `${hitOrdinals ? 'h' : ''}${blockOpenMode}`
+
             return (
               <div
-                key={item.key}
+                key={`${item.key}:${openKey}`}
                 data-index={item.index}
                 data-kind={nodes[item.index].kind}
                 ref={virt.measureElement}

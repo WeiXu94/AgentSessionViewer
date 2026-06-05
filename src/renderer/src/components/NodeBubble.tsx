@@ -57,21 +57,6 @@ interface NodeBubbleProps {
   blockOpenMode?: 'default' | 'collapsed' | 'expanded'
 }
 
-function isDefaultOpenToolCall(node: ViewNode): boolean {
-  if (node.kind !== 'tool_call') return false
-
-  const name = `${node.toolName ?? ''} ${node.title ?? ''}`.toLowerCase()
-  if (/\bexec_command\b/u.test(name) || /\bshell_command\b/u.test(name)) return true
-  if (/\bbash\b/u.test(name)) return true
-  if (/\bread_completed\b/u.test(name) || /\bread\s+completed\b/u.test(name)) return true
-  return false
-}
-
-function defaultDetailsOpen(node: ViewNode, hasSearchMatch: boolean): boolean {
-  if (hasSearchMatch) return true
-  return isDefaultOpenToolCall(node)
-}
-
 export const NodeBubble = memo(function NodeBubble({
   node,
   searchQuery = '',
@@ -80,8 +65,11 @@ export const NodeBubble = memo(function NodeBubble({
   blockOpenMode = 'default'
 }: NodeBubbleProps): JSX.Element {
   const text = displayNodeText(node.text)
-  const defaultOpen =
-    blockOpenMode === 'expanded' || (blockOpenMode === 'default' && defaultDetailsOpen(node, hasSearchMatch))
+  // Only user messages and assistant responses (rendered below as
+  // non-collapsible bubbles) are shown by default. Every collapsible block —
+  // system, meta, thinking, tool calls and results — stays collapsed unless it
+  // holds a search hit (or the user unfolds everything via blockOpenMode).
+  const defaultOpen = blockOpenMode === 'expanded' || (blockOpenMode === 'default' && hasSearchMatch)
   const bubbleClass = [
     'bubble',
     `bubble--${node.kind}`,

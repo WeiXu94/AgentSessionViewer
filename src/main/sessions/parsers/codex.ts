@@ -17,7 +17,7 @@ import { countDiffStats, extractStdoutTail } from '../utils/diff.js';
 import { findFiles, mapConcurrent } from '../utils/fs-helpers.js';
 import { getFileStats, readJsonlFile, scanJsonlFile, scanJsonlLines } from '../utils/jsonl.js';
 import { generateHandoffMarkdown } from '../utils/markdown.js';
-import { cleanSummary, extractRepo, homeDir } from '../utils/parser-helpers.js';
+import { cleanSummary, extractRepoFromCwd, homeDir } from '../utils/parser-helpers.js';
 import { matchesCwd } from '../utils/slug.js';
 import {
   extractExitCode,
@@ -297,10 +297,11 @@ export async function parseCodexSessions(options: SessionParseOptions = {}): Pro
       const cwd = meta?.payload?.cwd || '';
       if (options.cwd && cwd && !matchesCwd(cwd, options.cwd)) return null;
 
-      const gitUrl = meta?.payload?.git?.repository_url;
       const branch = meta?.payload?.git?.branch;
       const gitSha = meta?.payload?.git?.commit_hash || meta?.payload?.git?.sha;
-      const repo = extractRepo({ gitUrl, cwd });
+      // Show the working directory (last two cwd segments), not the git remote
+      // slug — matches Claude and the other parsers' folder display.
+      const repo = extractRepoFromCwd(cwd);
       const lastTranscriptTimestamp =
         !options.lightweight && fileStats.size <= MAX_METADATA_SCAN_BYTES
           ? await extractLastCodexTimestamp(filePath)

@@ -28,7 +28,7 @@ export const SessionRow = memo(function SessionRow({
   return (
     <div
       className={`row${selected ? ' row--selected' : ''}${isSub ? ' row--sub' : ''}`}
-      style={{ paddingLeft: 4 + depth * 16 }}
+      style={{ paddingLeft: 1 + depth * 16 }}
       onClick={onClick}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -36,6 +36,7 @@ export const SessionRow = memo(function SessionRow({
       }}
       title={session.cwd || session.originalPath}
     >
+      <span className="row__bar" style={{ background: sourceColor(session.source) }} />
       {hasChildren ? (
         <button
           className={`row__caret${expanded ? ' row__caret--open' : ''}`}
@@ -47,10 +48,7 @@ export const SessionRow = memo(function SessionRow({
         >
           <Tri />
         </button>
-      ) : (
-        <span className="row__caret row__caret--spacer" />
-      )}
-      <span className="row__bar" style={{ background: sourceColor(session.source) }} />
+      ) : null}
       <div className="row__main">
         <div className="row__line1">
           <span className="row__title">{sessionTitle(session)}</span>

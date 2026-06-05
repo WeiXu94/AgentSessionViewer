@@ -138,30 +138,8 @@ input {
   padding-left: 78px;
 }
 
-.toolbar__appicon {
-  display: grid;
-  place-items: center;
-  width: 19px;
-  height: 19px;
-  border-radius: 5px;
-  background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 88%, white), var(--accent));
-  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.5), 0 1px 2px rgb(0 0 0 / 0.18);
-}
-
-.toolbar__appicon svg {
-  width: 12px;
-  height: 12px;
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.toolbar__title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+.app--sidebar-collapsed .toolbar__lead {
+  width: auto;
 }
 
 .toolbar__sep {
@@ -851,7 +829,7 @@ input {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   height: var(--row-h);
   padding: 0 10px;
   border-radius: var(--r-sm);
@@ -876,7 +854,7 @@ input {
 .row__caret {
   display: grid;
   place-items: center;
-  width: 13px;
+  width: 10px;
   padding: 0;
   flex-shrink: 0;
   border: none;

@@ -1,6 +1,6 @@
 import type { SessionMeta, TranscriptPayload } from '../../../shared/ipc'
 import { fmtBytes, fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
-import { AppIcon, MacIcon } from './MacIcons'
+import { MacIcon } from './MacIcons'
 import { JsonView } from './JsonView'
 import { SessionView, type SessionSearchMatch } from './SessionView'
 
@@ -60,7 +60,6 @@ export function Viewer({
     <div className="viewer detail">
       <header className="viewer__header dheader">
         <div className="dheader__top">
-          <AppIcon source={session.source} size={36} />
           <div className="dheader__copy">
             <div className="viewer__title dheader__title">{sessionTitle(session)}</div>
             <div className="viewer__sub dheader__meta">

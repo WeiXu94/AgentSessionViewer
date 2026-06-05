@@ -77,6 +77,7 @@ export function App(): JSX.Element {
   const [source, setSource] = useState('')
   const [project, setProject] = useState('')
   const [sidebarW, setSidebarW] = useState(380)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [groupMode, setGroupMode] = useState<GroupMode>('chronological')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -333,13 +334,23 @@ export function App(): JSX.Element {
   }
 
   return (
-    <div className="app" data-density="cozy" style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}>
+    <div
+      className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}
+      data-density="cozy"
+      style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}
+    >
       <div className="toolbar">
         <div className="toolbar__lead">
-          <span className="toolbar__appicon">
-            <MacIcon name="bolt" />
-          </span>
-          <span className="toolbar__title">AgentSessionViewer</span>
+          <button
+            className="tbtn toolbar__toggle"
+            type="button"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            title={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
+            aria-label={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
+            aria-pressed={!sidebarCollapsed}
+          >
+            <MacIcon name="sidebar" />
+          </button>
         </div>
         <div className="toolbar__sep" />
         <div className="toolbar__main">
@@ -409,6 +420,7 @@ export function App(): JSX.Element {
       </div>
 
       <div className="body mac-body">
+        {sidebarCollapsed ? null : (
         <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
           <FilterBar
             text={text}
@@ -434,8 +446,9 @@ export function App(): JSX.Element {
             />
           )}
         </aside>
+        )}
 
-        <div className="divider mac-divider" onMouseDown={startDrag} />
+        {sidebarCollapsed ? null : <div className="divider mac-divider" onMouseDown={startDrag} />}
 
         <main className="main mac-detail">
           <Viewer

@@ -115,7 +115,13 @@ export const MI: Record<string, ReactNode> = {
   hash: <path d="M6.2 2.8 5.2 13.2M11 2.8 10 13.2M3.4 5.8h9.2M3 10.2h9.2" />,
   tray: <path d="M2.8 9.4 4.6 4h6.8l1.8 5.4M2.8 9.4V12a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V9.4M2.8 9.4h3.1l.9 1.4h2.4l.9-1.4h3.1" />,
   check: <path d="M3.4 8.4 6.4 11.4 12.6 4.8" />,
-  bolt: <path d="M9 2.4 4 8.6h3.4L7 13.6l5-6.4H8.6L9 2.4Z" />
+  bolt: <path d="M9 2.4 4 8.6h3.4L7 13.6l5-6.4H8.6L9 2.4Z" />,
+  sidebar: (
+    <>
+      <rect x="2.5" y="3.5" width="11" height="9" rx="2" />
+      <path d="M6.5 3.6v8.8" />
+    </>
+  )
 }
 
 export function MacIcon({
