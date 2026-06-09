@@ -8,6 +8,7 @@ const api: SessionsAPI = {
   reveal: (p) => ipcRenderer.invoke('shell:reveal', p),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   copy: (text) => ipcRenderer.invoke('clipboard:write', text),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   getAccentColor: () => ipcRenderer.invoke('system:accentColor'),
   onAccentColorChanged: (callback) => {
     const listener = (_event: IpcRendererEvent, accent: string): void => callback(accent)

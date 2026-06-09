@@ -50,22 +50,19 @@ function topVisibleIndex(items: Array<{ index: number; start: number }>, scrollT
   return topIndex
 }
 
-function OutlineIcon(): JSX.Element {
-  return <MacIcon name="outline" className="userOutline__svg" />
-}
-
 function CollapseBlocksIcon(): JSX.Element {
-  return <MacIcon name="collapse" className="blockToggle__icon" />
+  return <MacIcon name="collapseAll" className="blockModeButton__icon" />
 }
 
 function ExpandBlocksIcon(): JSX.Element {
-  return <MacIcon name="expand" className="blockToggle__icon" />
+  return <MacIcon name="expandAll" className="blockModeButton__icon" />
 }
 
 export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch }: Props): JSX.Element {
   const parentRef = useRef<HTMLDivElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
   const outlineWrapRef = useRef<HTMLDivElement>(null)
+  const outlineCloseTimer = useRef<ReturnType<typeof setTimeout>>()
   const topIndexRef = useRef(0)
   const [topIndex, setTopIndex] = useState(0)
   const [outlineOpen, setOutlineOpen] = useState(false)
@@ -133,8 +130,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
   const renderedTopIndex = topVisibleIndex(virtualItems, scrollTop)
   const effectiveTopIndex = lastVirtualEnd > 0 && lastVirtualEnd < scrollTop ? topIndex : renderedTopIndex
   const currentUserIndex = currentUserAt(userIndexes, effectiveTopIndex)
-  const currentUserOrdinal = userEntries.findIndex((entry) => entry.index === currentUserIndex)
-  const currentUserEntry = currentUserOrdinal >= 0 ? userEntries[currentUserOrdinal] : (userEntries[0] ?? null)
+  const blocksExpanded = blockOpenMode === 'expanded'
 
   useEffect(() => {
     if (!activeMatch || !searchQuery) return
@@ -182,6 +178,12 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
   }, [currentUserIndex, outlineOpen])
 
   useEffect(() => {
+    return () => {
+      if (outlineCloseTimer.current) clearTimeout(outlineCloseTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!outlineOpen) return
 
     const onPointerDown = (event: PointerEvent): void => {
@@ -204,78 +206,6 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
 
   return (
     <div className="sessionView detail__body">
-      <div className="userOutlineWrap" ref={outlineWrapRef}>
-        <div className="userOutlineBar inspbar" aria-label="User message outline">
-          <button
-            className={`userOutline__iconBtn inspbar__btn${outlineOpen ? ' userOutline__iconBtn--active inspbar__btn--on' : ''}`}
-            type="button"
-            disabled={userEntries.length === 0}
-            title="Show user message outline"
-            aria-label="Show user message outline"
-            aria-expanded={outlineOpen}
-            onClick={() => setOutlineOpen((open) => !open)}
-          >
-            <OutlineIcon />
-          </button>
-          <div className="userOutline__summary inspbar__sum">
-            <span className="userOutline__summaryLabel inspbar__label">
-              {currentUserOrdinal >= 0
-                ? `User message · ${currentUserOrdinal + 1} / ${userEntries.length}`
-                : 'User message'}
-            </span>
-            <span className="userOutline__summaryText inspbar__text">
-              {currentUserEntry ? currentUserEntry.label : 'No user messages'}
-            </span>
-          </div>
-          <div className="blockToggle segmented segmented--blocks" aria-label="Transcript block display">
-            <button
-              className={`blockToggle__btn seg seg--icon${blockOpenMode === 'collapsed' ? ' blockToggle__btn--active seg--on' : ''}`}
-              type="button"
-              title={blockOpenMode === 'collapsed' ? 'Restore default blocks' : 'Collapse all blocks'}
-              aria-label={blockOpenMode === 'collapsed' ? 'Restore default blocks' : 'Collapse all blocks'}
-              aria-pressed={blockOpenMode === 'collapsed'}
-              onClick={() => toggleBlockOpenMode('collapsed')}
-            >
-              <CollapseBlocksIcon />
-            </button>
-            <button
-              className={`blockToggle__btn seg seg--icon${blockOpenMode === 'expanded' ? ' blockToggle__btn--active seg--on' : ''}`}
-              type="button"
-              title={blockOpenMode === 'expanded' ? 'Restore default blocks' : 'Unfold all blocks'}
-              aria-label={blockOpenMode === 'expanded' ? 'Restore default blocks' : 'Unfold all blocks'}
-              aria-pressed={blockOpenMode === 'expanded'}
-              onClick={() => toggleBlockOpenMode('expanded')}
-            >
-              <ExpandBlocksIcon />
-            </button>
-          </div>
-        </div>
-
-        {outlineOpen ? (
-          <div className="userOutlinePopover outlinepop" ref={outlineRef} role="menu" aria-label="User messages">
-            {userEntries.map((entry, ordinal) => (
-              <button
-                key={entry.index}
-                className={`userOutline__item outline-item${
-                  entry.index === currentUserIndex ? ' userOutline__item--active outline-item--active' : ''
-                }`}
-                type="button"
-                role="menuitem"
-                data-user-index={entry.index}
-                title={entry.label}
-                onClick={() => {
-                  jumpToIndex(entry.index)
-                  setOutlineOpen(false)
-                }}
-              >
-                <span className="userOutline__number outline-item__num">{ordinal + 1}</span>
-                <span className="userOutline__text outline-item__txt">{entry.label}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
       <div className="transcript" ref={parentRef}>
         <div className="transcript__inner" style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualItems.map((item) => {
@@ -316,6 +246,70 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
           })}
         </div>
       </div>
+
+      {userEntries.length > 1 && (
+        <div
+          className="chatgptOutline"
+          ref={outlineWrapRef}
+          onMouseEnter={() => {
+            if (outlineCloseTimer.current) clearTimeout(outlineCloseTimer.current)
+            setOutlineOpen(true)
+          }}
+          onMouseLeave={() => {
+            outlineCloseTimer.current = setTimeout(() => setOutlineOpen(false), 200)
+          }}
+        >
+          <div
+            className={`chatgptOutline__panel${outlineOpen ? ' chatgptOutline__panel--open' : ''}`}
+            ref={outlineRef}
+            onMouseEnter={() => {
+              if (outlineCloseTimer.current) clearTimeout(outlineCloseTimer.current)
+            }}
+            onMouseLeave={() => {
+              outlineCloseTimer.current = setTimeout(() => setOutlineOpen(false), 200)
+            }}
+          >
+            <div className="chatgptOutline__header">
+              User Messages ({userEntries.length})
+            </div>
+            <div className="chatgptOutline__list">
+              {userEntries.map((entry, ordinal) => (
+                <button
+                  key={entry.index}
+                  className={`chatgptOutline__item${
+                    entry.index === currentUserIndex ? ' chatgptOutline__item--active' : ''
+                  }`}
+                  type="button"
+                  data-user-index={entry.index}
+                  onClick={() => jumpToIndex(entry.index)}
+                >
+                  <span className="chatgptOutline__num">{ordinal + 1}</span>
+                  <span className="chatgptOutline__text">{entry.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="chatgptOutline__bridge" />
+
+          <div className="chatgptOutline__lines">
+            {userEntries.slice(0, 12).map((_, i) => (
+              <div key={i} className="chatgptOutline__line" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        className={`blockModeButton${blocksExpanded ? ' blockModeButton--active' : ''}`}
+        type="button"
+        data-tooltip={blocksExpanded ? 'Collapse all blocks' : 'Expand all blocks'}
+        aria-label={blocksExpanded ? 'Collapse all blocks' : 'Expand all blocks'}
+        aria-pressed={blocksExpanded}
+        onClick={() => toggleBlockOpenMode('expanded')}
+      >
+        {blocksExpanded ? <CollapseBlocksIcon /> : <ExpandBlocksIcon />}
+      </button>
     </div>
   )
 }

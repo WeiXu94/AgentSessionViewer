@@ -87,10 +87,26 @@ export const MI: Record<string, ReactNode> = {
       <path d="M4.5 13h7" />
     </>
   ),
+  collapseAll: (
+    <>
+      <path d="M6.1 3.6h6.5M6.1 8h6.5M6.1 12.4h6.5" />
+      <path d="M2.7 2.2 4.7 3.6 2.7 5Z" fill="currentColor" stroke="none" />
+      <path d="M2.7 6.6 4.7 8 2.7 9.4Z" fill="currentColor" stroke="none" />
+      <path d="M2.7 11 4.7 12.4 2.7 13.8Z" fill="currentColor" stroke="none" />
+    </>
+  ),
   expand: (
     <>
       <rect x="3.2" y="3.2" width="9.6" height="9.6" rx="2.2" />
       <path d="M6 6.6h4M6 8.6h4M6 10.6h2.6" />
+    </>
+  ),
+  expandAll: (
+    <>
+      <path d="M6.1 3.6h6.5M6.1 8h6.5M6.1 12.4h6.5" />
+      <path d="M2.2 2.7H5L3.6 4.7Z" fill="currentColor" stroke="none" />
+      <path d="M2.2 7.1H5L3.6 9.1Z" fill="currentColor" stroke="none" />
+      <path d="M2.2 11.5H5l-1.4 2Z" fill="currentColor" stroke="none" />
     </>
   ),
   brain: (

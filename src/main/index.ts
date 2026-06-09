@@ -116,6 +116,10 @@ ipcMain.handle('clipboard:write', (_e, text: string) => {
   clipboard.writeText(text ?? '')
 })
 
+ipcMain.handle('shell:openExternal', async (_e, url: string) => {
+  if (url) await shell.openExternal(url)
+})
+
 ipcMain.handle('system:accentColor', () => getSystemAccentColor())
 
 // ── Lifecycle ────────────────────────────────────────────────────────

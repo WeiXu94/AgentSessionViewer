@@ -1,7 +1,8 @@
 import { memo, type ReactNode } from 'react'
 import type { ViewNode } from '../../../shared/ipc'
 import { fmtBytes } from '../util'
-import { MacIcon, MI, Tri } from './MacIcons'
+import { Tri } from './MacIcons'
+import { marked } from 'marked'
 
 const MAX_DISPLAY = 200_000
 
@@ -10,12 +11,25 @@ export function displayNodeText(text: string): string {
   return `${text.slice(0, MAX_DISPLAY)}\n…(${fmtBytes(text.length - MAX_DISPLAY)} more — open JSON view for full content)`
 }
 
-const ICON: Record<string, keyof typeof MI> = {
-  meta: 'hash',
-  system: 'info',
-  tool_call: 'gear',
-  tool_result: 'returnArrow',
-  thinking: 'brain'
+function mdBody(text: string): ReactNode {
+  const html = marked.parse(text, { async: false }) as string
+  return (
+    <span
+      className="msg--md"
+      dangerouslySetInnerHTML={{ __html: html }}
+      onClick={(e) => {
+        const link = (e.target as HTMLElement).closest('a')
+        if (!link || !link.href) return
+        e.preventDefault()
+        const url = link.href
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          window.api.openExternal(url)
+        } else {
+          window.api.openPath(url)
+        }
+      }}
+    />
+  )
 }
 
 function highlightedText(text: string, query: string, startOrdinal: number, activeOrdinal?: number): [ReactNode, number] {
@@ -82,7 +96,7 @@ export const NodeBubble = memo(function NodeBubble({
 
   if (node.kind === 'user' || node.kind === 'assistant') {
     const [title, nextOrdinal] = highlightedText(node.title ?? '', searchQuery, 0, activeMatchOrdinal)
-    const [body] = highlightedText(text, searchQuery, nextOrdinal, activeMatchOrdinal)
+    const body = searchQuery ? highlightedText(text, searchQuery, nextOrdinal, activeMatchOrdinal)[0] : mdBody(text)
 
     return (
       <div className={bubbleClass}>
@@ -106,9 +120,6 @@ export const NodeBubble = memo(function NodeBubble({
         <summary className="bubble__summary block__summary">
           <span className="block__tri">
             <Tri />
-          </span>
-          <span className="bubble__icon block__icon">
-            <MacIcon name={ICON[node.kind] ?? 'info'} />
           </span>
           <span className="bubble__title block__title">{title}</span>
           {node.inherited ? <span className="bubble__inherit">Inherited</span> : null}
