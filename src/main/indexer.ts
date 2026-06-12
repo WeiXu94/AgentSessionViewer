@@ -7,6 +7,7 @@ let cache: SessionMeta[] | null = null
 // Keyed by source+id, not originalPath: DB-backed sources (opencode, crush) share
 // one originalPath across all their sessions.
 const byKey = new Map<string, UnifiedSession>()
+const metaByKey = new Map<string, SessionMeta>()
 
 function sessionKey(source: string, id: string): string {
   return `${source}\u0000${id}`
@@ -64,10 +65,14 @@ function toMeta(s: UnifiedSession): SessionMeta {
 
 function setSessionCache(sessions: UnifiedSession[]): SessionMeta[] {
   byKey.clear()
+  metaByKey.clear()
   for (const s of sessions) {
     byKey.set(sessionKey(s.source, s.id), s)
   }
   cache = sessions.map(toMeta)
+  for (const m of cache) {
+    metaByKey.set(sessionKey(m.source, m.id), m)
+  }
   return cache
 }
 
@@ -110,4 +115,15 @@ export async function listSessions(force = false): Promise<SessionMeta[]> {
 /** Look up the full UnifiedSession (needed for DB-backed transcript reconstruction). */
 export function getSession(source: string, id: string): UnifiedSession | undefined {
   return byKey.get(sessionKey(source, id))
+}
+
+/**
+ * Look up the renderer-facing SessionMeta from the last listing. When
+ * `originalPath` is given it disambiguates source+id collisions (e.g. Claude
+ * subagent transcripts that share the parent's session id).
+ */
+export function getSessionMeta(source: string, id: string, originalPath?: string): SessionMeta | undefined {
+  const meta = metaByKey.get(sessionKey(source, id))
+  if (!originalPath || meta?.originalPath === originalPath) return meta
+  return cache?.find((m) => m.source === source && m.id === id && m.originalPath === originalPath) ?? meta
 }

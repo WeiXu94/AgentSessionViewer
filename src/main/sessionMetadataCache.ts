@@ -6,7 +6,8 @@ import { app } from 'electron'
 import { adapters, ALL_TOOLS } from './sessions/parsers/registry.js'
 import type { SessionSource, UnifiedSession } from './sessions/types/index.js'
 
-const CACHE_VERSION = 3
+// v4: claude subagent sessions get filename-derived ids (collision fix).
+const CACHE_VERSION = 4
 const CACHE_FILE = 'session-metadata-cache.json'
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const MAX_ANCESTOR_FINGERPRINTS_PER_SESSION = 6

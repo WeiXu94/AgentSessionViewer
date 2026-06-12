@@ -1,4 +1,5 @@
-import type { SessionMeta, TranscriptPayload } from '../../../shared/ipc'
+import { useEffect, useRef, useState } from 'react'
+import type { ExportFormat, SessionMeta, TranscriptPayload } from '../../../shared/ipc'
 import { fmtBytes, fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
 import { MacIcon } from './MacIcons'
 import { JsonView } from './JsonView'
@@ -14,6 +15,7 @@ interface Props {
   searchQuery: string
   searchHitsByNode: Map<number, Set<number>>
   activeMatch: SessionSearchMatch | null
+  scrollTarget?: { index: number; token: number } | null
   onReveal: () => void
 }
 
@@ -23,6 +25,94 @@ function JumpToParentIcon(): JSX.Element {
       <path d="M5.5 4.5h6v6" />
       <path d="m11.25 4.75-7 7" />
     </svg>
+  )
+}
+
+function ExportIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 2v7.5" />
+      <path d="m5 6.5 3 3 3-3" />
+      <path d="M3 10.5v2A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    </svg>
+  )
+}
+
+function ExportMenu({ session, disabled }: { session: SessionMeta; disabled: boolean }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!error) return
+    const timer = window.setTimeout(() => setError(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [error])
+
+  async function runExport(format: ExportFormat): Promise<void> {
+    setOpen(false)
+    setBusy(true)
+    setError('')
+    try {
+      const result = await window.api.exportSession(session.originalPath, session.source, session.id, format)
+      if (!result.ok) setError(result.error ?? 'Export failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="exportWrap" ref={wrapRef}>
+      {error ? <span className="exportError" title={error}>{error}</span> : null}
+      <button
+        className={`tbtn export__btn${busy ? ' tbtn--spin' : ''}`}
+        type="button"
+        disabled={disabled || busy}
+        title="Export session"
+        aria-label="Export session"
+        aria-haspopup="menu"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {busy ? <MacIcon name="reload" /> : <ExportIcon />}
+      </button>
+      {open ? (
+        <div className="dropdownMenu menu export__menu" role="menu">
+          <button
+            className="dropdownMenu__item menu__item"
+            type="button"
+            role="menuitem"
+            onClick={() => void runExport('markdown')}
+          >
+            <span className="menu__txt">Export as Markdown…</span>
+          </button>
+          <button
+            className="dropdownMenu__item menu__item"
+            type="button"
+            role="menuitem"
+            onClick={() => void runExport('html')}
+          >
+            <span className="menu__txt">Export as HTML…</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -36,6 +126,7 @@ export function Viewer({
   searchQuery,
   searchHitsByNode,
   activeMatch,
+  scrollTarget,
   onReveal
 }: Props): JSX.Element {
   if (!session) {
@@ -55,6 +146,8 @@ export function Viewer({
         `Parent ID: ${session.forkParentId}`
       ].join('\n')
     : ''
+
+  const canExport = !!transcript && !transcript.error && transcript.nodes.length > 0 && !loading
 
   return (
     <div className="viewer detail">
@@ -113,6 +206,7 @@ export function Viewer({
               </span>
             </div>
           </div>
+          <ExportMenu session={session} disabled={!canExport} />
         </div>
         <div className="viewer__path dheader__path" onClick={onReveal} title="Reveal in Finder">
           <MacIcon name="finder" />
@@ -131,6 +225,7 @@ export function Viewer({
             searchQuery={searchQuery}
             searchHitsByNode={searchHitsByNode}
             activeMatch={activeMatch}
+            scrollTarget={scrollTarget}
           />
         ) : (
           <JsonView records={transcript.records} reconstructed={transcript.reconstructed} />

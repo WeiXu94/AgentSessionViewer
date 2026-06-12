@@ -72,10 +72,56 @@ export interface TranscriptPayload {
   error?: string
 }
 
+/** Restricts a global search to one project (matched against the indexed session metadata). */
+export interface SearchScopeFilter {
+  repo?: string
+  cwd?: string
+}
+
+/** Snippet text is split on \x02 (match start) and \x03 (match end) markers for highlighting. */
+export interface GlobalSearchMatch {
+  nodeIndex: number
+  kind: 'user' | 'assistant'
+  snippet: string
+}
+
+export interface GlobalSearchGroup {
+  session: SessionMeta
+  matches: GlobalSearchMatch[]
+  totalMatches: number
+}
+
+export interface GlobalSearchResponse {
+  /** False when node:sqlite (and thus the index) is unavailable. */
+  available: boolean
+  /** True while the background indexer is still catching up — results may be incomplete. */
+  indexing: boolean
+  groups: GlobalSearchGroup[]
+  totalSessions: number
+}
+
+export interface SearchIndexProgress {
+  indexed: number
+  total: number
+  done: boolean
+}
+
+export type ExportFormat = 'markdown' | 'html'
+
+export interface ExportResult {
+  ok: boolean
+  canceled?: boolean
+  path?: string
+  error?: string
+}
+
 export interface SessionsAPI {
   list: (force?: boolean) => Promise<SessionMeta[]>
   /** `id` is required to disambiguate DB-backed sources where many sessions share one originalPath. */
   loadTranscript: (originalPath: string, source: string, id: string) => Promise<TranscriptPayload>
+  searchSessions: (query: string, scope?: SearchScopeFilter) => Promise<GlobalSearchResponse>
+  onSearchIndexProgress: (callback: (progress: SearchIndexProgress) => void) => () => void
+  exportSession: (originalPath: string, source: string, id: string, format: ExportFormat) => Promise<ExportResult>
   reveal: (path: string) => Promise<void>
   openPath: (path: string) => Promise<void>
   copy: (text: string) => Promise<void>

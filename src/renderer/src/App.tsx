@@ -7,13 +7,29 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
-import type { SessionMeta, TranscriptPayload, ViewNode } from '../../shared/ipc'
+import type {
+  GlobalSearchResponse,
+  SearchIndexProgress,
+  SearchScopeFilter,
+  SessionMeta,
+  TranscriptPayload,
+  ViewNode
+} from '../../shared/ipc'
 import { FilterBar } from './components/FilterBar'
+import { GlobalSearch, type FlatSearchRow } from './components/GlobalSearch'
 import { MacIcon } from './components/MacIcons'
 import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
 import { accentForeground, buildRows, type GroupMode, metaKey } from './util'
+
+type SearchScope = 'session' | 'project' | 'all'
+
+const SCOPE_LABELS: Record<SearchScope, string> = {
+  session: 'Session',
+  project: 'Project',
+  all: 'All'
+}
 
 type RowMenuAction = 'copy-resume' | 'copy-id' | 'copy-path' | 'reveal' | 'open-cwd' | 'filter-project'
 
@@ -86,9 +102,25 @@ export function App(): JSX.Element {
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Global (cross-session) search.
+  const [searchScope, setSearchScope] = useState<SearchScope>('session')
+  const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
+  const [globalOpen, setGlobalOpen] = useState(false)
+  const [globalResults, setGlobalResults] = useState<GlobalSearchResponse | null>(null)
+  const [globalLoading, setGlobalLoading] = useState(false)
+  const [activeResultIndex, setActiveResultIndex] = useState(0)
+  const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
+  const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
+  const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number } | null>(null)
+
   const reqRef = useRef(0)
+  const globalReqRef = useRef(0)
+  const scrollTokenRef = useRef(0)
+  const pendingJumpRef = useRef<{ key: string; nodeIndex: number } | null>(null)
+  pendingJumpRef.current = pendingJump
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const findWrapRef = useRef<HTMLDivElement>(null)
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
@@ -157,10 +189,16 @@ export function App(): JSX.Element {
   }, [selected?.source, selected?.id, selected?.originalPath])
 
   useEffect(() => {
+    setTab('session')
+    setScrollTarget(null)
+    // Arriving via a global-search jump keeps the query so highlights survive.
+    if (selected && pendingJumpRef.current?.key === metaKey(selected)) return
+    setPendingJump(null) // navigating elsewhere voids any queued jump
     setSessionSearchText('')
     setActiveMatchIndex(0)
-    setTab('session')
   }, [selected?.source, selected?.id])
+
+  useEffect(() => window.api.onSearchIndexProgress(setIndexProgress), [])
 
   const sources = useMemo(() => {
     const m = new Map<string, { label: string; count: number }>()
@@ -238,11 +276,112 @@ export function App(): JSX.Element {
     setActiveMatchIndex(0)
   }, [transcript?.nodes, searchQuery])
 
+  // Apply a queued global-search jump once the target transcript is in.
+  // Declared after the reset effect above so it wins on the same commit.
+  useEffect(() => {
+    if (!pendingJump || !transcript || loadingTx) return
+    if (!selected || metaKey(selected) !== pendingJump.key) return
+    if (transcript.error) {
+      setPendingJump(null) // target failed to load; don't fire on a later retry
+      return
+    }
+    const matchIdx = searchMatches.findIndex((m) => m.nodeIndex === pendingJump.nodeIndex)
+    if (matchIdx >= 0) setActiveMatchIndex(matchIdx)
+    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current })
+    setPendingJump(null)
+  }, [pendingJump, transcript, loadingTx, selected, searchMatches])
+
+  // ── Global search plumbing ─────────────────────────────────────────
+  const projectContext = useMemo(() => {
+    if (project) return { filter: { repo: project } as SearchScopeFilter, label: project }
+    if (selected?.repo) return { filter: { repo: selected.repo } as SearchScopeFilter, label: selected.repo }
+    if (selected?.cwd) {
+      const cwd = selected.cwd
+      const label = cwd.replace(/\/+$/u, '').split('/').filter(Boolean).at(-1) ?? cwd
+      return { filter: { cwd } as SearchScopeFilter, label }
+    }
+    return null
+  }, [project, selected?.repo, selected?.cwd])
+
+  const effectiveScope: SearchScope = searchScope === 'project' && !projectContext ? 'all' : searchScope
+  const scopeFilter = effectiveScope === 'project' ? projectContext?.filter : undefined
+  const scopeDisplay = effectiveScope === 'project' ? `project “${projectContext?.label}”` : 'all sessions'
+
+  useEffect(() => {
+    if (searchScope === 'session') {
+      setGlobalResults(null)
+      setGlobalLoading(false)
+      return
+    }
+    const q = sessionSearchText.trim()
+    if (q.length < 2) {
+      setGlobalResults(null)
+      setGlobalLoading(false)
+      return
+    }
+    setGlobalLoading(true)
+    const reqId = ++globalReqRef.current
+    const timer = window.setTimeout(() => {
+      void window.api.searchSessions(q, scopeFilter).then((res) => {
+        if (globalReqRef.current !== reqId) return
+        setGlobalResults(res)
+        setGlobalLoading(false)
+        setActiveResultIndex(0)
+      })
+    }, 250)
+    return () => window.clearTimeout(timer)
+    // indexProgress.done re-runs the query once a background index pass lands.
+  }, [sessionSearchText, searchScope, scopeFilter?.repo, scopeFilter?.cwd, indexProgress.done])
+
+  const flatRows = useMemo<FlatSearchRow[]>(
+    () => (globalResults?.groups ?? []).flatMap((group) => group.matches.map((match) => ({ group, match }))),
+    [globalResults]
+  )
+
+  const openSearchResult = useCallback(
+    (row: FlatSearchRow): void => {
+      const key = metaKey(row.group.session)
+      setGlobalOpen(false)
+      setTab('session')
+      setPendingJump({ key, nodeIndex: row.match.nodeIndex })
+      if (!selected || metaKey(selected) !== key) setSelected(row.group.session)
+    },
+    [selected]
+  )
+
+  function applyScope(scope: SearchScope): void {
+    setSearchScope(scope)
+    setScopeMenuOpen(false)
+    if (scope === 'session') setGlobalOpen(false)
+    else if (sessionSearchText.trim()) setGlobalOpen(true)
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
+
+  useEffect(() => {
+    if (!globalOpen && !scopeMenuOpen) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!findWrapRef.current?.contains(event.target as Node)) {
+        setGlobalOpen(false)
+        setScopeMenuOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => window.removeEventListener('pointerdown', onPointerDown)
+  }, [globalOpen, scopeMenuOpen])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
         event.preventDefault()
-        setTab('session')
+        if (event.shiftKey) {
+          // ⌘⇧F — search across all sessions.
+          setSearchScope('all')
+          setGlobalOpen(true)
+        } else {
+          setSearchScope('session')
+          setGlobalOpen(false)
+          setTab('session')
+        }
         requestAnimationFrame(() => {
           searchInputRef.current?.focus()
           searchInputRef.current?.select()
@@ -255,6 +394,33 @@ export function App(): JSX.Element {
   }, [])
 
   function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
+    if (searchScope !== 'session') {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (!globalOpen) {
+          setGlobalOpen(true)
+          return
+        }
+        if (flatRows.length === 0) return
+        const delta = event.key === 'ArrowDown' ? 1 : -1
+        setActiveResultIndex((prev) => (prev + delta + flatRows.length) % flatRows.length)
+      } else if (event.key === 'Enter') {
+        event.preventDefault()
+        if (!globalOpen) {
+          setGlobalOpen(true)
+          return
+        }
+        const row = flatRows[Math.min(activeResultIndex, Math.max(0, flatRows.length - 1))]
+        if (row) openSearchResult(row)
+      } else if (event.key === 'Escape') {
+        event.preventDefault()
+        if (globalOpen) setGlobalOpen(false)
+        else if (sessionSearchText) setSessionSearchText('')
+        else event.currentTarget.blur()
+      }
+      return
+    }
+
     if (event.key === 'Enter') {
       event.preventDefault()
       moveSearch(event.shiftKey ? -1 : 1)
@@ -359,44 +525,138 @@ export function App(): JSX.Element {
             {visibleCount !== totalCount ? ` of ${totalCount}` : ''} sessions
           </span>
           <span className="toolbar__spacer" />
-          <div className={`find${canSearchTranscript ? '' : ' find--disabled'}`}>
-            <MacIcon name="search" className="find-i" />
-            <input
-              ref={searchInputRef}
-              value={sessionSearchText}
-              disabled={!canSearchTranscript}
-              onFocus={() => setTab('session')}
-              onChange={(event) => {
-                setTab('session')
-                setSessionSearchText(event.target.value)
-              }}
-              onKeyDown={onSearchKeyDown}
-              placeholder="Find in session"
-              spellCheck={false}
-            />
-            <span className="find__count">
-              {searchQuery ? (searchMatches.length ? `${activeSearchIndex + 1} of ${searchMatches.length}` : '0') : ''}
-            </span>
-            <button
-              className="find__step"
-              type="button"
-              disabled={searchMatches.length === 0}
-              title="Previous match"
-              aria-label="Previous match"
-              onClick={() => moveSearch(-1)}
+          <div className="findWrap" ref={findWrapRef}>
+            <div
+              className={`find${searchScope === 'session' && !canSearchTranscript ? ' find--disabled' : ''}`}
             >
-              <MacIcon name="chevUp" />
-            </button>
-            <button
-              className="find__step"
-              type="button"
-              disabled={searchMatches.length === 0}
-              title="Next match"
-              aria-label="Next match"
-              onClick={() => moveSearch(1)}
-            >
-              <MacIcon name="chevDown" />
-            </button>
+              <button
+                className="find__scope"
+                type="button"
+                title="Search scope"
+                aria-label="Search scope"
+                aria-haspopup="menu"
+                onClick={() => setScopeMenuOpen((open) => !open)}
+              >
+                {SCOPE_LABELS[effectiveScope]}
+                <MacIcon name="chevDown" />
+              </button>
+              <MacIcon name="search" className="find-i" />
+              <input
+                ref={searchInputRef}
+                value={sessionSearchText}
+                disabled={searchScope === 'session' && !canSearchTranscript}
+                onFocus={() => {
+                  if (searchScope === 'session') setTab('session')
+                  else if (sessionSearchText.trim()) setGlobalOpen(true)
+                }}
+                onChange={(event) => {
+                  setSessionSearchText(event.target.value)
+                  if (searchScope === 'session') setTab('session')
+                  else setGlobalOpen(true)
+                }}
+                onKeyDown={onSearchKeyDown}
+                placeholder={
+                  searchScope === 'session'
+                    ? 'Find in session'
+                    : effectiveScope === 'project'
+                      ? `Search in ${projectContext?.label ?? 'project'}`
+                      : 'Search all sessions'
+                }
+                spellCheck={false}
+              />
+              {searchScope === 'session' ? (
+                <>
+                  <span className="find__count">
+                    {searchQuery
+                      ? searchMatches.length
+                        ? `${activeSearchIndex + 1} of ${searchMatches.length}`
+                        : '0'
+                      : ''}
+                  </span>
+                  <button
+                    className="find__step"
+                    type="button"
+                    disabled={searchMatches.length === 0}
+                    title="Previous match"
+                    aria-label="Previous match"
+                    onClick={() => moveSearch(-1)}
+                  >
+                    <MacIcon name="chevUp" />
+                  </button>
+                  <button
+                    className="find__step"
+                    type="button"
+                    disabled={searchMatches.length === 0}
+                    title="Next match"
+                    aria-label="Next match"
+                    onClick={() => moveSearch(1)}
+                  >
+                    <MacIcon name="chevDown" />
+                  </button>
+                </>
+              ) : (
+                <span className="find__count">
+                  {globalResults && searchQuery.length >= 2 ? `${globalResults.groups.length}` : ''}
+                </span>
+              )}
+            </div>
+
+            {scopeMenuOpen ? (
+              <div className="dropdownMenu menu find__scopeMenu" role="menu">
+                <button
+                  className="dropdownMenu__item menu__item"
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={searchScope === 'session'}
+                  onClick={() => applyScope('session')}
+                >
+                  <span className="dropdownMenu__check menu__check">
+                    {searchScope === 'session' ? <MacIcon name="check" /> : null}
+                  </span>
+                  <span className="menu__txt">This session</span>
+                </button>
+                <button
+                  className="dropdownMenu__item menu__item"
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={searchScope === 'project'}
+                  disabled={!projectContext}
+                  onClick={() => applyScope('project')}
+                >
+                  <span className="dropdownMenu__check menu__check">
+                    {searchScope === 'project' ? <MacIcon name="check" /> : null}
+                  </span>
+                  <span className="menu__txt">
+                    {projectContext ? `This project — ${projectContext.label}` : 'This project'}
+                  </span>
+                </button>
+                <button
+                  className="dropdownMenu__item menu__item"
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={searchScope === 'all'}
+                  onClick={() => applyScope('all')}
+                >
+                  <span className="dropdownMenu__check menu__check">
+                    {searchScope === 'all' ? <MacIcon name="check" /> : null}
+                  </span>
+                  <span className="menu__txt">All sessions</span>
+                </button>
+              </div>
+            ) : null}
+
+            {searchScope !== 'session' && globalOpen ? (
+              <GlobalSearch
+                response={globalResults}
+                loading={globalLoading}
+                query={searchQuery}
+                scopeLabel={scopeDisplay}
+                activeIndex={activeResultIndex}
+                progress={indexProgress}
+                onHover={setActiveResultIndex}
+                onOpen={openSearchResult}
+              />
+            ) : null}
           </div>
           <div className="segmented" aria-label="Viewer tab">
             <button className={`seg${tab === 'session' ? ' seg--on' : ''}`} onClick={() => setTab('session')}>
@@ -461,6 +721,7 @@ export function App(): JSX.Element {
             searchQuery={searchQuery}
             searchHitsByNode={searchHitsByNode}
             activeMatch={activeMatch}
+            scrollTarget={scrollTarget}
             onReveal={() => {
               if (selected) void window.api.reveal(selected.originalPath)
             }}

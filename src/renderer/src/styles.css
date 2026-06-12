@@ -1981,3 +1981,273 @@ details[open] .block__tri {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* ── Search scope + global search overlay ───────────────────────────── */
+.findWrap {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.find__scope {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 100%;
+  padding: 0 6px 0 9px;
+  border: none;
+  border-right: 0.5px solid var(--field-line);
+  background: rgb(0 0 0 / 0.03);
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  .find__scope {
+    background: rgb(255 255 255 / 0.04);
+  }
+}
+
+.find__scope:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.find__scope svg {
+  width: 9px;
+  height: 9px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find__scopeMenu {
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+}
+
+.globalSearch {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 48px));
+  max-height: min(64vh, 560px);
+  overflow: hidden;
+  border-radius: 11px;
+  background: var(--pop);
+  box-shadow: var(--pop-shadow);
+  backdrop-filter: blur(34px) saturate(1.8);
+  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  animation: pop 0.12s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.globalSearch__list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.globalSearch__empty {
+  padding: 22px 16px;
+  color: var(--label-2);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.globalSearch__session {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: 6px -6px 2px;
+  padding: 7px 14px 5px;
+  background: var(--pop);
+  backdrop-filter: blur(34px) saturate(1.8);
+  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+}
+
+.globalSearch__list > .globalSearch__session:first-child {
+  margin-top: -6px;
+}
+
+.globalSearch__badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.globalSearch__title {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globalSearch__repo {
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--label-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globalSearch__time {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.globalSearch__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-2);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.globalSearch__row--active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.globalSearch__kind {
+  flex-shrink: 0;
+  width: 26px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label-3);
+}
+
+.globalSearch__kind--user {
+  color: var(--accent);
+}
+
+.globalSearch__row--active .globalSearch__kind,
+.globalSearch__row--active .globalSearch__kind--user {
+  color: var(--accent-fg);
+  opacity: 0.85;
+}
+
+.globalSearch__snippet {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.globalSearch__snippet mark {
+  background: #ffd60a;
+  color: #1d1d1f;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.globalSearch__row--active .globalSearch__snippet mark {
+  background: rgb(255 255 255 / 0.92);
+  color: var(--accent);
+}
+
+.globalSearch__more {
+  padding: 1px 8px 5px 42px;
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+.globalSearch__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-top: 0.5px solid var(--sep);
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+.globalSearch__indexing {
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Jump flash (global search → transcript) ────────────────────────── */
+.transcriptRow--flash > * {
+  animation: jumpFlash 1.8s ease-out;
+  border-radius: 10px;
+}
+
+@keyframes jumpFlash {
+  0%,
+  55% {
+    box-shadow: 0 0 0 2.5px var(--accent), 0 0 0 7px var(--accent-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 2.5px transparent, 0 0 0 7px transparent;
+  }
+}
+
+/* ── Export menu (viewer header) ────────────────────────────────────── */
+.exportWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.exportWrap .export__btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.export__menu {
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+}
+
+.exportError {
+  max-width: 300px;
+  overflow: hidden;
+  color: var(--error);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

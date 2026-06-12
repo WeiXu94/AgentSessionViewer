@@ -1,10 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
-import type { SessionsAPI } from '../shared/ipc.js'
+import type { SearchIndexProgress, SessionsAPI } from '../shared/ipc.js'
 
 const api: SessionsAPI = {
   list: (force) => ipcRenderer.invoke('sessions:list', force),
   loadTranscript: (originalPath, source, id) => ipcRenderer.invoke('transcript:load', originalPath, source, id),
+  searchSessions: (query, scope) => ipcRenderer.invoke('search:query', query, scope),
+  onSearchIndexProgress: (callback) => {
+    const listener = (_event: IpcRendererEvent, progress: SearchIndexProgress): void => callback(progress)
+    ipcRenderer.on('searchIndex:progress', listener)
+    return () => ipcRenderer.removeListener('searchIndex:progress', listener)
+  },
+  exportSession: (originalPath, source, id, format) =>
+    ipcRenderer.invoke('export:session', originalPath, source, id, format),
   reveal: (p) => ipcRenderer.invoke('shell:reveal', p),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   copy: (text) => ipcRenderer.invoke('clipboard:write', text),

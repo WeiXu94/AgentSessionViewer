@@ -19,6 +19,8 @@ interface Props {
   searchQuery: string
   searchHitsByNode: Map<number, Set<number>>
   activeMatch: SessionSearchMatch | null
+  /** One-shot jump request (global search). `token` retriggers same-index jumps. */
+  scrollTarget?: { index: number; token: number } | null
 }
 
 type BlockOpenMode = 'default' | 'collapsed' | 'expanded'
@@ -58,7 +60,7 @@ function ExpandBlocksIcon(): JSX.Element {
   return <MacIcon name="expandAll" className="blockModeButton__icon" />
 }
 
-export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch }: Props): JSX.Element {
+export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch, scrollTarget }: Props): JSX.Element {
   const parentRef = useRef<HTMLDivElement>(null)
   const outlineRef = useRef<HTMLDivElement>(null)
   const outlineWrapRef = useRef<HTMLDivElement>(null)
@@ -136,6 +138,15 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
     if (!activeMatch || !searchQuery) return
     jumpToIndex(activeMatch.nodeIndex, 'center')
   }, [activeMatch?.nodeIndex, jumpToIndex, searchQuery])
+
+  const [flashIndex, setFlashIndex] = useState<number | null>(null)
+  useEffect(() => {
+    if (!scrollTarget || scrollTarget.index >= nodes.length) return
+    jumpToIndex(scrollTarget.index, 'center')
+    setFlashIndex(scrollTarget.index)
+    const timer = window.setTimeout(() => setFlashIndex(null), 1800)
+    return () => window.clearTimeout(timer)
+  }, [scrollTarget?.token])
 
   useEffect(() => {
     topIndexRef.current = 0
@@ -225,6 +236,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch 
                 key={`${item.key}:${openKey}`}
                 data-index={item.index}
                 data-kind={nodes[item.index].kind}
+                className={item.index === flashIndex ? 'transcriptRow--flash' : undefined}
                 ref={virt.measureElement}
                 style={{
                   position: 'absolute',

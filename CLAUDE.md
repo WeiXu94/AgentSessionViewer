@@ -45,6 +45,9 @@ electron-vite, three layers; the renderer has no Node access and talks only over
 - `src/main/` — all file I/O. `indexer.ts` merges every adapter's `parseSessions({lightweight:true})`
   (each wrapped in try/catch so one failing source can't break the rest) into `SessionMeta[]`.
   `transcript.ts` loads a full transcript on demand. `mappers/` turn raw records into display nodes.
+  `searchIndex.ts` keeps an FTS5 index (node:sqlite, `<userData>/search-index.db`) of user+assistant
+  text for cross-session search; synced in the background after every `sessions:list`. `export.ts`
+  holds the pure markdown/HTML transcript exporters (dialog + file write live in `index.ts`).
 - `src/main/sessions/` — **vendored** from `cli-continues/src` (parsers, types, utils, config). Carries
   targeted local edits (Pi parser; variant + subagent detection in `claude.ts`/`codex.ts`; `variant`/
   `parentId`/`subagentType` on `UnifiedSession`). Re-apply these when syncing from upstream.
@@ -67,8 +70,15 @@ electron-vite, three layers; the renderer has no Node access and talks only over
   (`claude`, `codex`, `pi`, else `generic`). Adding a first-class JSONL source = new mapper + dispatch.
 - **Variants & subagents.** Each session has a `variant` (`cli`/`desktop`/`vscode`/`subagent`): Claude from
   `entrypoint`, Codex from `originator` / `source.subagent`; Claude subagents are discovered from
-  `<parentUuid>/subagents/agent-*.jsonl`. Tree mode (`buildRows` in `util.ts`) nests subagents under the
-  parent matched by `parentId → id`.
+  `<parentUuid>/subagents/**/agent-*.jsonl` (incl. `workflows/wf_*/` nesting) and get their **id from the
+  filename**, not from records — subagent records carry the parent's sessionId, which would collide.
+  Tree mode (`buildRows` in `util.ts`) nests subagents under the parent matched by `parentId → id`.
+- **node:sqlite truncates TEXT at embedded NUL on read.** Never store the renderer's NUL-separated
+  `metaKey` in SQLite — `searchIndex.ts` keys rows by `source:id:originalPath` and reads identity from
+  dedicated columns instead of splitting keys.
+- **Search indexes only `kind ∈ {user, assistant}`, skipping `inherited` fork nodes** (tool noise and
+  duplicated parent content stay out). `node_index` stored per message = index into the same
+  `loadTranscript().nodes` array the viewer renders, so search hits can jump straight to a node.
 
 ### Adding a new agent/tool
 

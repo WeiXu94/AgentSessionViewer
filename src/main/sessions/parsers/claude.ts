@@ -58,12 +58,17 @@ async function findSessionFiles(options: SessionParseOptions = {}): Promise<stri
 
 /**
  * Detect Claude subagent transcripts. They live in `<parentUuid>/subagents/agent-*.jsonl`
- * with an adjacent `<base>.meta.json` describing the spawned agent.
+ * (or nested deeper, e.g. `<parentUuid>/subagents/workflows/wf_<id>/agent-<id>.jsonl`
+ * for workflow-spawned agents) with an adjacent `<base>.meta.json` describing the agent.
  */
 function detectClaudeSubagent(
   filePath: string,
 ): { parentId: string; subagentType?: string; description?: string } | null {
-  const dir = path.dirname(filePath);
+  const fileDir = path.dirname(filePath);
+  let dir = fileDir;
+  for (let hops = 0; hops < 3 && path.basename(dir) !== 'subagents'; hops++) {
+    dir = path.dirname(dir);
+  }
   if (path.basename(dir) !== 'subagents') return null;
   const parentId = path.basename(path.dirname(dir));
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentId)) return null;
@@ -71,13 +76,14 @@ function detectClaudeSubagent(
   let subagentType: string | undefined;
   let description: string | undefined;
   try {
-    const metaPath = path.join(dir, `${path.basename(filePath, '.jsonl')}.meta.json`);
+    const metaPath = path.join(fileDir, `${path.basename(filePath, '.jsonl')}.meta.json`);
     const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as Record<string, unknown>;
     if (typeof meta.agentType === 'string') subagentType = meta.agentType;
     if (typeof meta.description === 'string') description = meta.description;
   } catch {
     /* meta.json optional */
   }
+  if (!subagentType && fileDir !== dir) subagentType = path.basename(path.dirname(fileDir));
   return { parentId, subagentType, description };
 }
 
@@ -229,8 +235,13 @@ export async function parseClaudeSessions(options: SessionParseOptions = {}): Pr
           ? 'desktop'
           : 'cli';
 
+      // Subagent records carry the PARENT's sessionId; derive a unique, stable
+      // id from the filename instead so source+id identity never collides.
+      const fileBase = path.basename(filePath, '.jsonl');
+      const id = subagent && info.sessionId !== fileBase ? fileBase : info.sessionId;
+
       return {
-        id: info.sessionId,
+        id,
         source: 'claude',
         cwd: info.cwd,
         repo,

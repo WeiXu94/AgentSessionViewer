@@ -1,8 +1,10 @@
+import * as fs from 'node:fs'
 import { join } from 'node:path'
 import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   ipcMain,
   Menu,
   nativeTheme,
@@ -10,7 +12,10 @@ import {
   systemPreferences,
   type MenuItemConstructorOptions
 } from 'electron'
-import { listSessions } from './indexer.js'
+import type { ExportFormat, SearchIndexProgress, SearchScopeFilter } from '../shared/ipc.js'
+import { buildHtmlExport, buildMarkdownExport } from './export.js'
+import { getSessionMeta, listSessions } from './indexer.js'
+import { searchSessions, syncSearchIndex } from './searchIndex.js'
 import { loadTranscript } from './transcript.js'
 
 const APP_NAME = 'AgentSessionViewer'
@@ -98,11 +103,60 @@ function createWindow(): void {
 }
 
 // ── IPC ──────────────────────────────────────────────────────────────
-ipcMain.handle('sessions:list', (_e, force?: boolean) => listSessions(!!force))
+function sendSearchIndexProgress(progress: SearchIndexProgress): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('searchIndex:progress', progress)
+  }
+}
+
+ipcMain.handle('sessions:list', async (_e, force?: boolean) => {
+  const metas = await listSessions(!!force)
+  // Bring the full-text index up to date in the background; never blocks the listing.
+  syncSearchIndex(metas, sendSearchIndexProgress)
+  return metas
+})
 
 ipcMain.handle('transcript:load', (_e, originalPath: string, source: string, id: string) =>
   loadTranscript(originalPath, source, id)
 )
+
+ipcMain.handle('search:query', async (_e, query: string, scope?: SearchScopeFilter) => {
+  await listSessions(false) // ensure the meta cache backing resolveMeta is populated
+  return searchSessions(query, scope, getSessionMeta)
+})
+
+ipcMain.handle('export:session', async (_e, originalPath: string, source: string, id: string, format: ExportFormat) => {
+  try {
+    await listSessions(false)
+    const meta = getSessionMeta(source, id, originalPath)
+    const payload = await loadTranscript(originalPath, source, id)
+    if (payload.error) return { ok: false, error: payload.error }
+    if (payload.nodes.length === 0) return { ok: false, error: 'Nothing to export — no renderable messages.' }
+
+    const ext = format === 'html' ? 'html' : 'md'
+    const safeId = id.replace(/[^\w.-]+/gu, '-').slice(0, 24) || 'session'
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    const saveOptions = {
+      title: format === 'html' ? 'Export Session as HTML' : 'Export Session as Markdown',
+      defaultPath: join(app.getPath('downloads'), `${source}-session-${safeId}.${ext}`),
+      filters:
+        format === 'html'
+          ? [{ name: 'HTML', extensions: ['html', 'htm'] }]
+          : [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+    }
+    const result = win ? await dialog.showSaveDialog(win, saveOptions) : await dialog.showSaveDialog(saveOptions)
+    if (result.canceled || !result.filePath) return { ok: true, canceled: true }
+
+    const identity = { source, id }
+    const content =
+      format === 'html' ? buildHtmlExport(meta, payload, identity) : buildMarkdownExport(meta, payload, identity)
+    fs.writeFileSync(result.filePath, content, 'utf8')
+    shell.showItemInFolder(result.filePath)
+    return { ok: true, path: result.filePath }
+  } catch (err) {
+    return { ok: false, error: (err as Error)?.message ?? String(err) }
+  }
+})
 
 ipcMain.handle('shell:reveal', (_e, p: string) => {
   if (p) shell.showItemInFolder(p)
