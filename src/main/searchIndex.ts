@@ -299,6 +299,19 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
 }
 
+/** Escape the GLOB wildcards (* ? [) so a token matches literally. GLOB is the
+ *  case-sensitive counterpart of LIKE — used for exact-case body matching. */
+function globEscape(text: string): string {
+  return text.replace(/[*?[]/gu, (c) => `[${c}]`)
+}
+
+function queryTokens(query: string): string[] {
+  return query
+    .split(/\s+/u)
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
 /**
  * If the session title matches the query, return the title with every matched
  * span wrapped in highlight markers; otherwise null. Used to rank title hits
@@ -390,6 +403,16 @@ export function searchSessions(
     where.push('s.cwd = ?')
     params.push(scope.cwd)
   }
+  // Match Case: the FTS index is case-folded, but the messages table keeps the
+  // original-case text. GLOB is case-sensitive (unlike LIKE), so require every
+  // query token to appear in the stored text with its exact case. This is exact
+  // for multi-word queries too — no snippet-window guessing.
+  if (matchCase) {
+    for (const token of queryTokens(query)) {
+      where.push('m.text GLOB ?')
+      params.push(`*${globEscape(token)}*`)
+    }
+  }
 
   let rows: MatchRow[]
   try {
@@ -409,21 +432,6 @@ export function searchSessions(
   } catch (err) {
     console.warn('[searchIndex] query failed:', (err as Error)?.message ?? err)
     return { available: true, indexing, groups: [], totalSessions: 0 }
-  }
-
-  // FTS (unicode61) is case-folded, so matchCase can only be applied after the
-  // fact: keep a row only if a query token appears in its snippet with the exact
-  // case. The snippet always covers the matched span, so this is accurate for the
-  // common single-token query (lenient for multi-token, which is acceptable).
-  if (matchCase) {
-    const tokens = query
-      .split(/\s+/u)
-      .map((t) => t.trim())
-      .filter(Boolean)
-    rows = rows.filter((r) => {
-      const text = r.snippet.split(MARK_START).join('').split(MARK_END).join('')
-      return tokens.some((t) => text.includes(t))
-    })
   }
 
   // Group by session, keep result order (= best bm25 rank first).
