@@ -105,6 +105,8 @@ export interface SearchOptions {
   scope?: SearchScopeFilter
   /** Match whole words only (no prefix/substring matching). */
   wholeWord?: boolean
+  /** Case-sensitive matching (best-effort for body text; exact for titles). */
+  matchCase?: boolean
 }
 
 export interface GlobalSearchResponse {

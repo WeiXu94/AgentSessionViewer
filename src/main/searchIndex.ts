@@ -308,19 +308,20 @@ function escapeRegExp(text: string): string {
  * query matches a title containing all its words in any order — consistent with
  * how the body FTS search behaves.
  */
-function titleSnippet(title: string, query: string, wholeWord: boolean): string | null {
+function titleSnippet(title: string, query: string, wholeWord: boolean, matchCase: boolean): string | null {
   const tokens = query
     .split(/\s+/u)
     .map((t) => t.trim())
     .filter(Boolean)
   if (!title || tokens.length === 0) return null
 
+  const flags = matchCase ? 'gu' : 'giu'
   const ranges: Array<[number, number]> = []
   for (const token of tokens) {
     const pattern = wholeWord ? `\\b${escapeRegExp(token)}\\b` : escapeRegExp(token)
     let re: RegExp
     try {
-      re = new RegExp(pattern, 'giu')
+      re = new RegExp(pattern, flags)
     } catch {
       return null
     }
@@ -375,6 +376,7 @@ export function searchSessions(
 
   const scope = options?.scope
   const wholeWord = !!options?.wholeWord
+  const matchCase = !!options?.matchCase
 
   const expression = ftsExpression(query, wholeWord)
   if (!expression) return { available: true, indexing, groups: [], totalSessions: 0 }
@@ -407,6 +409,21 @@ export function searchSessions(
   } catch (err) {
     console.warn('[searchIndex] query failed:', (err as Error)?.message ?? err)
     return { available: true, indexing, groups: [], totalSessions: 0 }
+  }
+
+  // FTS (unicode61) is case-folded, so matchCase can only be applied after the
+  // fact: keep a row only if a query token appears in its snippet with the exact
+  // case. The snippet always covers the matched span, so this is accurate for the
+  // common single-token query (lenient for multi-token, which is acceptable).
+  if (matchCase) {
+    const tokens = query
+      .split(/\s+/u)
+      .map((t) => t.trim())
+      .filter(Boolean)
+    rows = rows.filter((r) => {
+      const text = r.snippet.split(MARK_START).join('').split(MARK_END).join('')
+      return tokens.some((t) => text.includes(t))
+    })
   }
 
   // Group by session, keep result order (= best bm25 rank first).
@@ -443,7 +460,7 @@ export function searchSessions(
     return true
   })
   for (const m of scoped) {
-    const snip = titleSnippet(m.summary ?? '', query, wholeWord)
+    const snip = titleSnippet(m.summary ?? '', query, wholeWord, matchCase)
     if (!snip) continue
     const key = sessionKey(m)
     const group =

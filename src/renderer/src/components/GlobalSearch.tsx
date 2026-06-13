@@ -23,6 +23,8 @@ interface Props {
   hasSession: boolean
   wholeWord: boolean
   onWholeWord: (value: boolean) => void
+  matchCase: boolean
+  onMatchCase: (value: boolean) => void
   response: GlobalSearchResponse | null
   loading: boolean
   scopeLabel: string
@@ -67,6 +69,8 @@ export function GlobalSearch({
   hasSession,
   wholeWord,
   onWholeWord,
+  matchCase,
+  onMatchCase,
   response,
   loading,
   scopeLabel,
@@ -173,6 +177,28 @@ export function GlobalSearch({
             spellCheck={false}
             autoFocus
           />
+          <div className="searchModal__toggles">
+            <button
+              type="button"
+              className={`searchModal__toggle${matchCase ? ' searchModal__toggle--on' : ''}`}
+              aria-pressed={matchCase}
+              title="Match case"
+              aria-label="Match case"
+              onClick={() => onMatchCase(!matchCase)}
+            >
+              Aa
+            </button>
+            <button
+              type="button"
+              className={`searchModal__toggle${wholeWord ? ' searchModal__toggle--on' : ''}`}
+              aria-pressed={wholeWord}
+              title="Match whole word"
+              aria-label="Match whole word"
+              onClick={() => onWholeWord(!wholeWord)}
+            >
+              <span className="searchModal__toggleWw">ab</span>
+            </button>
+          </div>
           <button className="searchModal__close" type="button" onClick={onClose} title="Close" aria-label="Close search">
             <MacIcon name="close" />
           </button>
@@ -194,16 +220,6 @@ export function GlobalSearch({
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            className={`searchModal__opt${wholeWord ? ' searchModal__opt--on' : ''}`}
-            aria-pressed={wholeWord}
-            title="Match whole word"
-            onClick={() => onWholeWord(!wholeWord)}
-          >
-            <span className="searchModal__optCheck">{wholeWord ? <MacIcon name="check" /> : null}</span>
-            Whole word
-          </button>
         </div>
 
         {body}

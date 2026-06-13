@@ -132,10 +132,12 @@ input {
 .toolbar__lead {
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: flex-end;
+  gap: 6px;
   width: var(--sidebar-w, 380px);
   flex-shrink: 0;
   padding-left: 78px;
+  padding-right: 10px;
 }
 
 .app--sidebar-collapsed .toolbar__lead {
@@ -2048,7 +2050,9 @@ details[open] .block__tri {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 12vh;
+  /* Vertical position knob: `padding-top` sets how far down the modal sits.
+     Smaller = higher, larger = lower. (Top stays fixed as results load.) */
+  padding: 24vh 24px 24px;
   background: rgb(0 0 0 / 0.28);
   -webkit-app-region: no-drag;
   animation: fade 0.12s ease-out;
@@ -2182,43 +2186,46 @@ details[open] .block__tri {
   cursor: default;
 }
 
-.searchModal__opt {
+/* VSCode-style toggles inside the search box (Match Case "Aa", Whole Word "ab"). */
+.searchModal__toggles {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 4px 10px;
-  border: 0.5px solid var(--field-line);
-  border-radius: 7px;
+}
+
+.searchModal__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
   background: transparent;
-  color: var(--label-2);
-  font-size: 12px;
+  color: var(--label-3);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
-.searchModal__opt--on {
-  border-color: var(--accent);
+.searchModal__toggle:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.searchModal__toggle--on {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   background: var(--accent-soft);
   color: var(--label);
 }
 
-.searchModal__optCheck {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-}
-
-.searchModal__optCheck svg {
-  width: 11px;
-  height: 11px;
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.searchModal__toggleWw {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .searchModal .globalSearch__list {

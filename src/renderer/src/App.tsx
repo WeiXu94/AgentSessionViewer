@@ -82,12 +82,12 @@ function buildSearchMatches(nodes: ViewNode[], rawQuery: string): SessionSearchM
   return matches
 }
 
-function searchRegex(query: string, wholeWord: boolean): RegExp | null {
+function searchRegex(query: string, wholeWord: boolean, matchCase: boolean): RegExp | null {
   const q = query.trim()
   if (!q) return null
   const esc = q.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
   try {
-    return new RegExp(wholeWord ? `\\b${esc}\\b` : esc, 'giu')
+    return new RegExp(wholeWord ? `\\b${esc}\\b` : esc, matchCase ? 'gu' : 'giu')
   } catch {
     return null
   }
@@ -111,9 +111,10 @@ function buildLocalResponse(
   session: SessionMeta,
   nodes: ViewNode[],
   query: string,
-  wholeWord: boolean
+  wholeWord: boolean,
+  matchCase: boolean
 ): GlobalSearchResponse {
-  const re = searchRegex(query, wholeWord)
+  const re = searchRegex(query, wholeWord, matchCase)
   if (!re) return { available: true, indexing: false, groups: [], totalSessions: 0 }
 
   const matches: GlobalSearchMatch[] = []
@@ -166,6 +167,7 @@ export function App(): JSX.Element {
   const [searchText, setSearchText] = useState('')
   const [searchScope, setSearchScope] = useState<SearchScope>('all')
   const [wholeWord, setWholeWord] = useState(false)
+  const [matchCase, setMatchCase] = useState(false)
   const [globalResults, setGlobalResults] = useState<GlobalSearchResponse | null>(null)
   const [globalLoading, setGlobalLoading] = useState(false)
   const [activeResultIndex, setActiveResultIndex] = useState(0)
@@ -392,7 +394,7 @@ export function App(): JSX.Element {
     setGlobalLoading(true)
     const reqId = ++globalReqRef.current
     const timer = window.setTimeout(() => {
-      void window.api.searchSessions(q, { scope: scopeFilter, wholeWord }).then((res) => {
+      void window.api.searchSessions(q, { scope: scopeFilter, wholeWord, matchCase }).then((res) => {
         if (globalReqRef.current !== reqId) return
         setGlobalResults(res)
         setGlobalLoading(false)
@@ -401,14 +403,14 @@ export function App(): JSX.Element {
     }, 250)
     return () => window.clearTimeout(timer)
     // indexProgress.done re-runs the query once a background index pass lands.
-  }, [searchText, effectiveScope, scopeFilter?.repo, scopeFilter?.cwd, wholeWord, indexProgress.done])
+  }, [searchText, effectiveScope, scopeFilter?.repo, scopeFilter?.cwd, wholeWord, matchCase, indexProgress.done])
 
   const localResponse = useMemo(
     () =>
       effectiveScope === 'session' && selected && transcript && !transcript.error
-        ? buildLocalResponse(selected, transcript.nodes, searchText.trim(), wholeWord)
+        ? buildLocalResponse(selected, transcript.nodes, searchText.trim(), wholeWord, matchCase)
         : null,
-    [effectiveScope, selected, transcript, searchText, wholeWord]
+    [effectiveScope, selected, transcript, searchText, wholeWord, matchCase]
   )
 
   const searchResponse = effectiveScope === 'session' ? localResponse : globalResults
@@ -421,7 +423,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     setActiveResultIndex(0)
-  }, [searchText, effectiveScope, wholeWord])
+  }, [searchText, effectiveScope, wholeWord, matchCase])
 
   const openSearchResult = useCallback(
     (row: FlatSearchRow): void => {
@@ -551,6 +553,27 @@ export function App(): JSX.Element {
     window.addEventListener('mouseup', up)
   }
 
+  // Search + collapse controls, left-aligned in the toolbar header (search left
+  // of collapse), next to the window controls. They stay put whether or not the
+  // sidebar is collapsed.
+  const searchBtn = (
+    <button className="tbtn" type="button" onClick={openSearch} title="Search sessions (⌘F)" aria-label="Search sessions">
+      <MacIcon name="search" />
+    </button>
+  )
+  const collapseBtn = (
+    <button
+      className="tbtn toolbar__toggle"
+      type="button"
+      onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+      title={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
+      aria-label={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
+      aria-pressed={!sidebarCollapsed}
+    >
+      <MacIcon name="sidebar" />
+    </button>
+  )
+
   return (
     <div
       className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}
@@ -559,25 +582,8 @@ export function App(): JSX.Element {
     >
       <div className="toolbar">
         <div className="toolbar__lead">
-          <button
-            className="tbtn toolbar__toggle"
-            type="button"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            title={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
-            aria-label={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
-            aria-pressed={!sidebarCollapsed}
-          >
-            <MacIcon name="sidebar" />
-          </button>
-          <button
-            className="tbtn"
-            type="button"
-            onClick={openSearch}
-            title="Search sessions (⌘F)"
-            aria-label="Search sessions"
-          >
-            <MacIcon name="search" />
-          </button>
+          {searchBtn}
+          {collapseBtn}
         </div>
         <div className="toolbar__sep" />
         <div className="toolbar__main">
@@ -666,6 +672,8 @@ export function App(): JSX.Element {
           hasSession={canSearchTranscript}
           wholeWord={wholeWord}
           onWholeWord={setWholeWord}
+          matchCase={matchCase}
+          onMatchCase={setMatchCase}
           response={searchResponse}
           loading={searchLoading}
           scopeLabel={scopeDisplay}
