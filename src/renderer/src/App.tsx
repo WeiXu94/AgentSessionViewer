@@ -173,7 +173,7 @@ export function App(): JSX.Element {
   const [activeResultIndex, setActiveResultIndex] = useState(0)
   const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
   const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
-  const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number } | null>(null)
+  const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number; query: string } | null>(null)
   // Identity (metaKey) of the session whose transcript is currently in `transcript`.
   // null while loading — a queued jump waits for this to match its target.
   const [transcriptKey, setTranscriptKey] = useState<string | null>(null)
@@ -348,7 +348,9 @@ export function App(): JSX.Element {
     }
     const matchIdx = searchMatches.findIndex((m) => m.nodeIndex === pendingJump.nodeIndex)
     if (matchIdx >= 0) setActiveMatchIndex(matchIdx)
-    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current })
+    // Cross-session jump: inline highlighting is off for non-session scope, so
+    // carry the query along to briefly mark the matched text on the landed node.
+    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current, query: searchText.trim() })
     setPendingJump(null)
   }, [pendingJump, transcript, transcriptKey, loadingTx, searchMatches])
 

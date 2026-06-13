@@ -19,8 +19,9 @@ interface Props {
   searchQuery: string
   searchHitsByNode: Map<number, Set<number>>
   activeMatch: SessionSearchMatch | null
-  /** One-shot jump request (global search). `token` retriggers same-index jumps. */
-  scrollTarget?: { index: number; token: number } | null
+  /** One-shot jump request (global search). `token` retriggers same-index jumps.
+   *  `query` briefly highlights the matched text on the landed node. */
+  scrollTarget?: { index: number; token: number; query: string } | null
 }
 
 type BlockOpenMode = 'default' | 'collapsed' | 'expanded'
@@ -140,11 +141,16 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
   }, [activeMatch?.nodeIndex, jumpToIndex, searchQuery])
 
   const [flashIndex, setFlashIndex] = useState<number | null>(null)
+  const [flashQuery, setFlashQuery] = useState('')
   useEffect(() => {
     if (!scrollTarget || scrollTarget.index >= nodes.length) return
     jumpToIndex(scrollTarget.index, 'center')
     setFlashIndex(scrollTarget.index)
-    const timer = window.setTimeout(() => setFlashIndex(null), 1800)
+    setFlashQuery(scrollTarget.query)
+    const timer = window.setTimeout(() => {
+      setFlashIndex(null)
+      setFlashQuery('')
+    }, 2400)
     return () => window.clearTimeout(timer)
   }, [scrollTarget?.token])
 
@@ -221,7 +227,13 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
         <div className="transcript__inner" style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualItems.map((item) => {
             const hitOrdinals = searchHitsByNode.get(item.index)
-            const activeOrdinal = activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : undefined
+            // On a cross-session jump the landed row briefly highlights the query
+            // text itself (the inline search highlight is off for that scope).
+            const isFlashTarget = item.index === flashIndex && !!flashQuery
+            const nodeQuery = isFlashTarget ? flashQuery : searchQuery
+            const hasMatch = !!hitOrdinals || isFlashTarget
+            const activeOrdinal =
+              activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : isFlashTarget ? 0 : undefined
 
             // A collapsible block auto-opens when it has a search hit or when
             // block-open mode changes, growing in place. react-virtual only
@@ -229,7 +241,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
             // re-measure that in-place growth, so following rows overlap the
             // expanded block. Fold the open-affecting state into the React key
             // to force a remount — and thus a fresh measurement — on change.
-            const openKey = `${hitOrdinals ? 'h' : ''}${blockOpenMode}`
+            const openKey = `${hasMatch ? 'h' : ''}${isFlashTarget ? 'f' : ''}${blockOpenMode}`
 
             return (
               <div
@@ -248,8 +260,8 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
               >
                 <NodeBubble
                   node={nodes[item.index]}
-                  searchQuery={searchQuery}
-                  hasSearchMatch={!!hitOrdinals}
+                  searchQuery={nodeQuery}
+                  hasSearchMatch={hasMatch}
                   activeMatchOrdinal={activeOrdinal}
                   blockOpenMode={blockOpenMode}
                 />

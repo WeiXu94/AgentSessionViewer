@@ -15,7 +15,7 @@ interface Props {
   searchQuery: string
   searchHitsByNode: Map<number, Set<number>>
   activeMatch: SessionSearchMatch | null
-  scrollTarget?: { index: number; token: number } | null
+  scrollTarget?: { index: number; token: number; query: string } | null
   onReveal: () => void
 }
 
