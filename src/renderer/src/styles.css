@@ -2387,6 +2387,13 @@ details[open] .block__tri {
 }
 
 /* ── Jump flash (global search → transcript) ────────────────────────── */
+/* Range-based highlight of the matched text on the landed node — paints over the
+   rendered markdown without replacing it with raw text. */
+::highlight(jump-search) {
+  background-color: #ffd60a;
+  color: #1d1d1f;
+}
+
 .transcriptRow--flash > * {
   animation: jumpFlash 1.8s ease-out;
   border-radius: 10px;

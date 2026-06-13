@@ -154,6 +154,54 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
     return () => window.clearTimeout(timer)
   }, [scrollTarget?.token])
 
+  // Briefly highlight the matched text on the jumped-to node WITHOUT swapping its
+  // rendered markdown for raw text — the CSS Custom Highlight API paints over the
+  // live DOM via Ranges, so the node stays fully rendered the whole time.
+  useEffect(() => {
+    const highlights = (CSS as unknown as { highlights?: { set(k: string, v: object): void; delete(k: string): void } })
+      .highlights
+    const HighlightCtor = (window as unknown as { Highlight?: new (...ranges: Range[]) => object }).Highlight
+    if (!highlights || !HighlightCtor) return
+    if (flashIndex === null || !flashQuery) {
+      highlights.delete('jump-search')
+      return
+    }
+    let raf2 = 0
+    // Wait for the markdown to be in the DOM (and the jump scroll to render it).
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const root = parentRef.current?.querySelector(`[data-index="${flashIndex}"]`)
+        const target = (root?.querySelector('.bubble__text') as Element | null) ?? root
+        if (!target) return
+        const needle = flashQuery.toLowerCase()
+        const ranges: Range[] = []
+        const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT)
+        let textNode: Node | null
+        while ((textNode = walker.nextNode())) {
+          const content = textNode.textContent ?? ''
+          const lower = content.toLowerCase()
+          let from = 0
+          for (;;) {
+            const idx = lower.indexOf(needle, from)
+            if (idx === -1) break
+            const range = document.createRange()
+            range.setStart(textNode, idx)
+            range.setEnd(textNode, idx + needle.length)
+            ranges.push(range)
+            from = idx + needle.length
+          }
+        }
+        if (ranges.length) highlights.set('jump-search', new HighlightCtor(...ranges))
+        else highlights.delete('jump-search')
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      highlights.delete('jump-search')
+    }
+  }, [flashIndex, flashQuery, nodes])
+
   useEffect(() => {
     topIndexRef.current = 0
     setTopIndex(0)
@@ -227,13 +275,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
         <div className="transcript__inner" style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualItems.map((item) => {
             const hitOrdinals = searchHitsByNode.get(item.index)
-            // On a cross-session jump the landed row briefly highlights the query
-            // text itself (the inline search highlight is off for that scope).
-            const isFlashTarget = item.index === flashIndex && !!flashQuery
-            const nodeQuery = isFlashTarget ? flashQuery : searchQuery
-            const hasMatch = !!hitOrdinals || isFlashTarget
-            const activeOrdinal =
-              activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : isFlashTarget ? 0 : undefined
+            const activeOrdinal = activeMatch?.nodeIndex === item.index ? activeMatch.ordinalInNode : undefined
 
             // A collapsible block auto-opens when it has a search hit or when
             // block-open mode changes, growing in place. react-virtual only
@@ -241,7 +283,7 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
             // re-measure that in-place growth, so following rows overlap the
             // expanded block. Fold the open-affecting state into the React key
             // to force a remount — and thus a fresh measurement — on change.
-            const openKey = `${hasMatch ? 'h' : ''}${isFlashTarget ? 'f' : ''}${blockOpenMode}`
+            const openKey = `${hitOrdinals ? 'h' : ''}${blockOpenMode}`
 
             return (
               <div
@@ -260,8 +302,8 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
               >
                 <NodeBubble
                   node={nodes[item.index]}
-                  searchQuery={nodeQuery}
-                  hasSearchMatch={hasMatch}
+                  searchQuery={searchQuery}
+                  hasSearchMatch={!!hitOrdinals}
                   activeMatchOrdinal={activeOrdinal}
                   blockOpenMode={blockOpenMode}
                 />
