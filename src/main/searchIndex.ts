@@ -22,7 +22,10 @@ const SCHEMA_VERSION = 1
 /** Per-message cap keeps pathological pastes from bloating the index. */
 const MAX_MESSAGE_CHARS = 256 * 1024
 const MATCH_LIMIT = 300
-const MATCHES_PER_SESSION = 5
+// Snippets returned per session. The UI shows the first few collapsed and lets
+// the user expand to see the rest, so this is the expand ceiling, not the display
+// count.
+const MATCHES_PER_SESSION = 50
 
 interface SqliteStatement {
   all(...params: unknown[]): unknown[]

@@ -2369,6 +2369,21 @@ details[open] .block__tri {
   font-size: 11px;
 }
 
+button.globalSearch__more--btn {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--accent);
+}
+
+button.globalSearch__more--btn:hover {
+  text-decoration: underline;
+}
+
 .globalSearch__foot {
   display: flex;
   align-items: center;
@@ -2386,27 +2401,13 @@ details[open] .block__tri {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Jump flash (global search → transcript) ────────────────────────── */
+/* ── Jump highlight (global search → transcript) ────────────────────── */
 /* Range-based highlight of the matched text on the landed node — paints over the
-   rendered markdown without replacing it with raw text. */
+   rendered markdown without replacing it with raw text. The text highlight alone
+   marks the spot (no surrounding row box). */
 ::highlight(jump-search) {
   background-color: #ffd60a;
   color: #1d1d1f;
-}
-
-.transcriptRow--flash > * {
-  animation: jumpFlash 1.8s ease-out;
-  border-radius: 10px;
-}
-
-@keyframes jumpFlash {
-  0%,
-  55% {
-    box-shadow: 0 0 0 2.5px var(--accent), 0 0 0 7px var(--accent-soft);
-  }
-  100% {
-    box-shadow: 0 0 0 2.5px transparent, 0 0 0 7px transparent;
-  }
 }
 
 /* ── Export menu (viewer header) ────────────────────────────────────── */

@@ -44,6 +44,8 @@ const MARK_START = String.fromCharCode(2)
 const MARK_END = String.fromCharCode(3)
 const SNIPPET_RADIUS = 48
 const LOCAL_MATCHES_SHOWN = 50
+// Matches shown per session before the "+N more" expander.
+const COLLAPSED_MATCHES = 5
 
 function countPartMatches(
   text: string,
@@ -171,6 +173,8 @@ export function App(): JSX.Element {
   const [globalResults, setGlobalResults] = useState<GlobalSearchResponse | null>(null)
   const [globalLoading, setGlobalLoading] = useState(false)
   const [activeResultIndex, setActiveResultIndex] = useState(0)
+  // Session keys whose result list is expanded past the collapsed preview.
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
   const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
   const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number; query: string } | null>(null)
@@ -419,12 +423,28 @@ export function App(): JSX.Element {
   const searchLoading = effectiveScope === 'session' ? false : globalLoading
 
   const flatRows = useMemo<FlatSearchRow[]>(
-    () => (searchResponse?.groups ?? []).flatMap((group) => group.matches.map((match) => ({ group, match }))),
-    [searchResponse]
+    () =>
+      (searchResponse?.groups ?? []).flatMap((group) => {
+        const shown = expandedResults.has(metaKey(group.session))
+          ? group.matches
+          : group.matches.slice(0, COLLAPSED_MATCHES)
+        return shown.map((match) => ({ group, match }))
+      }),
+    [searchResponse, expandedResults]
   )
+
+  const toggleResultExpand = useCallback((key: string): void => {
+    setExpandedResults((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     setActiveResultIndex(0)
+    setExpandedResults(new Set())
   }, [searchText, effectiveScope, wholeWord, matchCase])
 
   const openSearchResult = useCallback(
@@ -682,6 +702,9 @@ export function App(): JSX.Element {
           activeIndex={activeResultIndex}
           progress={indexProgress}
           inputRef={searchInputRef}
+          collapsedCount={COLLAPSED_MATCHES}
+          expanded={expandedResults}
+          onToggleExpand={toggleResultExpand}
           onHover={setActiveResultIndex}
           onOpen={openSearchResult}
           onClose={() => setSearchOpen(false)}

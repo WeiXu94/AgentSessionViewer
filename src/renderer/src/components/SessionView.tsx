@@ -166,14 +166,17 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
       highlights.delete('jump-search')
       return
     }
-    let raf2 = 0
-    // Wait for the markdown to be in the DOM (and the jump scroll to render it).
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const root = parentRef.current?.querySelector(`[data-index="${flashIndex}"]`)
-        const target = (root?.querySelector('.bubble__text') as Element | null) ?? root
-        if (!target) return
-        const needle = flashQuery.toLowerCase()
+    const needle = flashQuery.toLowerCase()
+    let raf = 0
+    let tries = 0
+    // The target node may be far from the current window, so it isn't in the DOM
+    // until the jump scroll renders it. Poll across frames until it mounts, then
+    // build the ranges, highlight, and pull the first match into view (a tall node
+    // can be centered while the match itself sits off-screen).
+    const attempt = (): void => {
+      const root = parentRef.current?.querySelector(`[data-index="${flashIndex}"]`)
+      const target = (root?.querySelector('.bubble__text') as Element | null) ?? root
+      if (target) {
         const ranges: Range[] = []
         const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT)
         let textNode: Node | null
@@ -191,13 +194,25 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
             from = idx + needle.length
           }
         }
-        if (ranges.length) highlights.set('jump-search', new HighlightCtor(...ranges))
-        else highlights.delete('jump-search')
-      })
-    })
+        if (ranges.length) {
+          highlights.set('jump-search', new HighlightCtor(...ranges))
+          const scroller = parentRef.current
+          if (scroller) {
+            const rect = ranges[0].getBoundingClientRect()
+            const sr = scroller.getBoundingClientRect()
+            if (rect.height && (rect.top < sr.top + 60 || rect.bottom > sr.bottom - 60)) {
+              scroller.scrollTop += rect.top - sr.top - scroller.clientHeight / 2 + rect.height / 2
+            }
+          }
+          return
+        }
+      }
+      // Keep trying for ~0.6s while the virtualizer mounts/measures the node.
+      if (tries++ < 36) raf = requestAnimationFrame(attempt)
+    }
+    raf = requestAnimationFrame(attempt)
     return () => {
-      cancelAnimationFrame(raf1)
-      cancelAnimationFrame(raf2)
+      cancelAnimationFrame(raf)
       highlights.delete('jump-search')
     }
   }, [flashIndex, flashQuery, nodes])
@@ -290,7 +305,6 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
                 key={`${item.key}:${openKey}`}
                 data-index={item.index}
                 data-kind={nodes[item.index].kind}
-                className={item.index === flashIndex ? 'transcriptRow--flash' : undefined}
                 ref={virt.measureElement}
                 style={{
                   position: 'absolute',

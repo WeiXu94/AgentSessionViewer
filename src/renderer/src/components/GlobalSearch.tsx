@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { GlobalSearchGroup, GlobalSearchMatch, GlobalSearchResponse, SearchIndexProgress } from '../../../shared/ipc'
-import { fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
+import { fmtTime, metaKey, sessionTitle, sourceColor, sourceName } from '../util'
 import { MacIcon } from './MacIcons'
 
 export type SearchScope = 'all' | 'project' | 'session'
@@ -31,6 +31,9 @@ interface Props {
   activeIndex: number
   progress: SearchIndexProgress
   inputRef: RefObject<HTMLInputElement>
+  collapsedCount: number
+  expanded: Set<string>
+  onToggleExpand: (key: string) => void
   onHover: (index: number) => void
   onOpen: (row: FlatSearchRow) => void
   onClose: () => void
@@ -77,6 +80,9 @@ export function GlobalSearch({
   activeIndex,
   progress,
   inputRef,
+  collapsedCount,
+  expanded,
+  onToggleExpand,
   onHover,
   onOpen,
   onClose
@@ -115,41 +121,55 @@ export function GlobalSearch({
     let rowIndex = -1
     body = (
       <div className="globalSearch__list" ref={listRef}>
-        {groups.map((group) => (
-          <Fragment key={`${group.session.source}:${group.session.id}:${group.session.originalPath}`}>
-            <div className="globalSearch__session">
-              <span className="globalSearch__badge" style={{ color: sourceColor(group.session.source) }}>
-                {sourceName(group.session.source)}
-              </span>
-              <span className="globalSearch__title" title={sessionTitle(group.session)}>
-                {sessionTitle(group.session)}
-              </span>
-              {group.session.variantLabel ? <span className="vchip">{group.session.variantLabel}</span> : null}
-              {group.session.repo ? <span className="globalSearch__repo">{group.session.repo}</span> : null}
-              <span className="globalSearch__time">{fmtTime(group.session.updatedAt)}</span>
-            </div>
-            {group.matches.map((match, i) => {
-              rowIndex++
-              const index = rowIndex
-              return (
-                <button
-                  key={`${match.kind}:${match.nodeIndex}:${i}`}
-                  type="button"
-                  className={`globalSearch__row${index === activeIndex ? ' globalSearch__row--active' : ''}`}
-                  data-active={index === activeIndex || undefined}
-                  onMouseMove={() => onHover(index)}
-                  onClick={() => onOpen({ group, match })}
-                >
-                  <span className={`globalSearch__kind globalSearch__kind--${match.kind}`}>{matchLabel(match.kind)}</span>
-                  <span className="globalSearch__snippet">{renderSnippet(match.snippet)}</span>
+        {groups.map((group) => {
+          const key = metaKey(group.session)
+          const isExpanded = expanded.has(key)
+          const shown = isExpanded ? group.matches : group.matches.slice(0, collapsedCount)
+          const hiddenReturned = group.matches.length - shown.length
+          // Total beyond what's shown (the index can hold more than it returned).
+          const beyondShown = group.totalMatches - shown.length
+          return (
+            <Fragment key={`${group.session.source}:${group.session.id}:${group.session.originalPath}`}>
+              <div className="globalSearch__session">
+                <span className="globalSearch__badge" style={{ color: sourceColor(group.session.source) }}>
+                  {sourceName(group.session.source)}
+                </span>
+                <span className="globalSearch__title" title={sessionTitle(group.session)}>
+                  {sessionTitle(group.session)}
+                </span>
+                {group.session.variantLabel ? <span className="vchip">{group.session.variantLabel}</span> : null}
+                {group.session.repo ? <span className="globalSearch__repo">{group.session.repo}</span> : null}
+                <span className="globalSearch__time">{fmtTime(group.session.updatedAt)}</span>
+              </div>
+              {shown.map((match, i) => {
+                rowIndex++
+                const index = rowIndex
+                return (
+                  <button
+                    key={`${match.kind}:${match.nodeIndex}:${i}`}
+                    type="button"
+                    className={`globalSearch__row${index === activeIndex ? ' globalSearch__row--active' : ''}`}
+                    data-active={index === activeIndex || undefined}
+                    onMouseMove={() => onHover(index)}
+                    onClick={() => onOpen({ group, match })}
+                  >
+                    <span className={`globalSearch__kind globalSearch__kind--${match.kind}`}>{matchLabel(match.kind)}</span>
+                    <span className="globalSearch__snippet">{renderSnippet(match.snippet)}</span>
+                  </button>
+                )
+              })}
+              {isExpanded ? (
+                <button type="button" className="globalSearch__more globalSearch__more--btn" onClick={() => onToggleExpand(key)}>
+                  Show fewer{hiddenReturned < beyondShown ? ` · showing ${shown.length} of ${group.totalMatches}` : ''}
                 </button>
-              )
-            })}
-            {group.totalMatches > group.matches.length ? (
-              <div className="globalSearch__more">+{group.totalMatches - group.matches.length} more in this session</div>
-            ) : null}
-          </Fragment>
-        ))}
+              ) : hiddenReturned > 0 ? (
+                <button type="button" className="globalSearch__more globalSearch__more--btn" onClick={() => onToggleExpand(key)}>
+                  +{beyondShown} more in this session
+                </button>
+              ) : null}
+            </Fragment>
+          )
+        })}
       </div>
     )
   }
