@@ -79,6 +79,17 @@ electron-vite, three layers; the renderer has no Node access and talks only over
 - **Search indexes only `kind ∈ {user, assistant}`, skipping `inherited` fork nodes** (tool noise and
   duplicated parent content stay out). `node_index` stored per message = index into the same
   `loadTranscript().nodes` array the viewer renders, so search hits can jump straight to a node.
+- **Search is one unified modal** (`GlobalSearch.tsx`, ChatGPT-style), not two bars. Scopes: All
+  (default) / This project / This session. All/Project hit the FTS index (debounced); This session
+  searches the open transcript locally over *all* node kinds. **Title hits are weighted above body
+  hits** — `searchSessions` takes the live `SessionMeta[]` (fresh titles, not the possibly-stale
+  indexed `summary` column) and `titleSnippet()` tokenizes the query AND-of-tokens like the FTS path.
+  Whole-word toggle drops the FTS prefix-`*` and uses `\b` regex boundaries.
+- **Claude session titles come from `ai-title` records** (`{"type":"ai-title","aiTitle":…}` — Claude's
+  own generated title, on ~⅔ of sessions). The vendored TS parser never read it (the Swift
+  `agent-sessions` original did), so titles had regressed to the first user message. Precedence in
+  `claude.ts`: explicit `customTitle` (manual rename) > `aiTitle` (last/most-current; its record
+  `sessionId` can differ from the file's in fork chains) > first user message > subagent desc.
 
 ### Adding a new agent/tool
 

@@ -5,7 +5,7 @@ import type { SearchIndexProgress, SessionsAPI } from '../shared/ipc.js'
 const api: SessionsAPI = {
   list: (force) => ipcRenderer.invoke('sessions:list', force),
   loadTranscript: (originalPath, source, id) => ipcRenderer.invoke('transcript:load', originalPath, source, id),
-  searchSessions: (query, scope) => ipcRenderer.invoke('search:query', query, scope),
+  searchSessions: (query, options) => ipcRenderer.invoke('search:query', query, options),
   onSearchIndexProgress: (callback) => {
     const listener = (_event: IpcRendererEvent, progress: SearchIndexProgress): void => callback(progress)
     ipcRenderer.on('searchIndex:progress', listener)

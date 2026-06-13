@@ -2031,22 +2031,199 @@ details[open] .block__tri {
   min-width: 230px;
 }
 
-.globalSearch {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 70;
+/* ── Unified search modal (ChatGPT-style) ───────────────────────────── */
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.searchModal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgb(0 0 0 / 0.28);
+  -webkit-app-region: no-drag;
+  animation: fade 0.12s ease-out;
+}
+
+.searchModal {
   display: flex;
   flex-direction: column;
-  width: min(640px, calc(100vw - 48px));
-  max-height: min(64vh, 560px);
+  width: min(680px, calc(100vw - 48px));
+  max-height: min(70vh, 620px);
   overflow: hidden;
-  border-radius: 11px;
+  border-radius: 14px;
   background: var(--pop);
   box-shadow: var(--pop-shadow);
   backdrop-filter: blur(34px) saturate(1.8);
   -webkit-backdrop-filter: blur(34px) saturate(1.8);
-  animation: pop 0.12s cubic-bezier(0.2, 0.9, 0.3, 1);
+  animation: pop 0.13s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.searchModal__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--sep);
+}
+
+.searchModal__icon {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--label-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchModal__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--label);
+  font-size: 16px;
+  outline: none;
+}
+
+.searchModal__input::placeholder {
+  color: var(--label-3);
+}
+
+.searchModal__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.searchModal__close:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.searchModal__close svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchModal__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--sep);
+}
+
+.searchModal__scopes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .searchModal__scopes {
+    background: rgb(255 255 255 / 0.06);
+  }
+}
+
+.searchModal__scope {
+  padding: 4px 11px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.searchModal__scope:hover:not(:disabled):not(.searchModal__scope--on) {
+  color: var(--label);
+}
+
+.searchModal__scope--on {
+  background: var(--pop);
+  color: var(--label);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+.searchModal__scope:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.searchModal__opt {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 0.5px solid var(--field-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.searchModal__opt--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--label);
+}
+
+.searchModal__optCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+
+.searchModal__optCheck svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchModal .globalSearch__list {
+  flex: 1;
+  min-height: 0;
 }
 
 .globalSearch__list {
@@ -2138,7 +2315,7 @@ details[open] .block__tri {
 
 .globalSearch__kind {
   flex-shrink: 0;
-  width: 26px;
+  width: 30px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2146,7 +2323,8 @@ details[open] .block__tri {
   color: var(--label-3);
 }
 
-.globalSearch__kind--user {
+.globalSearch__kind--user,
+.globalSearch__kind--title {
   color: var(--accent);
 }
 

@@ -12,7 +12,7 @@ import {
   systemPreferences,
   type MenuItemConstructorOptions
 } from 'electron'
-import type { ExportFormat, SearchIndexProgress, SearchScopeFilter } from '../shared/ipc.js'
+import type { ExportFormat, SearchIndexProgress, SearchOptions } from '../shared/ipc.js'
 import { buildHtmlExport, buildMarkdownExport } from './export.js'
 import { getSessionMeta, listSessions } from './indexer.js'
 import { searchSessions, syncSearchIndex } from './searchIndex.js'
@@ -120,9 +120,11 @@ ipcMain.handle('transcript:load', (_e, originalPath: string, source: string, id:
   loadTranscript(originalPath, source, id)
 )
 
-ipcMain.handle('search:query', async (_e, query: string, scope?: SearchScopeFilter) => {
-  await listSessions(false) // ensure the meta cache backing resolveMeta is populated
-  return searchSessions(query, scope, getSessionMeta)
+ipcMain.handle('search:query', async (_e, query: string, options?: SearchOptions) => {
+  // listSessions() backs resolveMeta AND supplies the live titles used for the
+  // title-weighted ranking, so its result is fed straight into the search.
+  const metas = await listSessions(false)
+  return searchSessions(query, options, getSessionMeta, metas)
 })
 
 ipcMain.handle('export:session', async (_e, originalPath: string, source: string, id: string, format: ExportFormat) => {

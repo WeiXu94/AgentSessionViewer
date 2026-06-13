@@ -16,24 +16,20 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
 ]
 
 interface Props {
-  text: string
   source: string
   project: string
   groupMode: GroupMode
   sources: SourceOption[]
-  onText: (v: string) => void
   onSource: (v: string) => void
   onProject: (v: string) => void
   onGroupMode: (v: GroupMode) => void
 }
 
 export function FilterBar({
-  text,
   source,
   project,
   groupMode,
   sources,
-  onText,
   onSource,
   onProject,
   onGroupMode
@@ -62,16 +58,6 @@ export function FilterBar({
 
   return (
     <div className="filterbar sb-controls">
-      <label className="sb-search">
-        <MacIcon name="search" />
-        <input
-          className="search"
-          type="search"
-          placeholder="Search"
-          value={text}
-          onChange={(e) => onText(e.target.value)}
-        />
-      </label>
       <div className="filterbar__row sb-filterrow" ref={controlsRef}>
         <div className="menuWrap menuWrap--source popup">
           <button

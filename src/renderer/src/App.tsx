@@ -8,6 +8,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import type {
+  GlobalSearchGroup,
+  GlobalSearchMatch,
   GlobalSearchResponse,
   SearchIndexProgress,
   SearchScopeFilter,
@@ -16,20 +18,12 @@ import type {
   ViewNode
 } from '../../shared/ipc'
 import { FilterBar } from './components/FilterBar'
-import { GlobalSearch, type FlatSearchRow } from './components/GlobalSearch'
+import { GlobalSearch, type FlatSearchRow, type SearchScope } from './components/GlobalSearch'
 import { MacIcon } from './components/MacIcons'
 import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
 import { accentForeground, buildRows, type GroupMode, metaKey } from './util'
-
-type SearchScope = 'session' | 'project' | 'all'
-
-const SCOPE_LABELS: Record<SearchScope, string> = {
-  session: 'Session',
-  project: 'Project',
-  all: 'All'
-}
 
 type RowMenuAction = 'copy-resume' | 'copy-id' | 'copy-path' | 'reveal' | 'open-cwd' | 'filter-project'
 
@@ -43,6 +37,13 @@ interface SessionSearchMatch {
   nodeIndex: number
   ordinalInNode: number
 }
+
+// Snippet highlight markers — the same pair GlobalSearch splits on. Built from
+// char codes so no literal control bytes land in the source file.
+const MARK_START = String.fromCharCode(2)
+const MARK_END = String.fromCharCode(3)
+const SNIPPET_RADIUS = 48
+const LOCAL_MATCHES_SHOWN = 50
 
 function countPartMatches(
   text: string,
@@ -81,6 +82,66 @@ function buildSearchMatches(nodes: ViewNode[], rawQuery: string): SessionSearchM
   return matches
 }
 
+function searchRegex(query: string, wholeWord: boolean): RegExp | null {
+  const q = query.trim()
+  if (!q) return null
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+  try {
+    return new RegExp(wholeWord ? `\\b${esc}\\b` : esc, 'giu')
+  } catch {
+    return null
+  }
+}
+
+function makeSnippet(text: string, start: number, len: number): string {
+  const from = Math.max(0, start - SNIPPET_RADIUS)
+  const to = Math.min(text.length, start + len + SNIPPET_RADIUS)
+  const pre = (from > 0 ? '… ' : '') + text.slice(from, start)
+  const hit = text.slice(start, start + len)
+  const post = text.slice(start + len, to) + (to < text.length ? ' …' : '')
+  return pre + MARK_START + hit + MARK_END + post
+}
+
+/**
+ * Build a search-result response for the currently open transcript. Runs over
+ * every node (so it covers tool output too, unlike the user/assistant-only FTS
+ * index) and produces one result row per matching node.
+ */
+function buildLocalResponse(
+  session: SessionMeta,
+  nodes: ViewNode[],
+  query: string,
+  wholeWord: boolean
+): GlobalSearchResponse {
+  const re = searchRegex(query, wholeWord)
+  if (!re) return { available: true, indexing: false, groups: [], totalSessions: 0 }
+
+  const matches: GlobalSearchMatch[] = []
+  nodes.forEach((node, nodeIndex) => {
+    const body = displayNodeText(node.text)
+    if (!body) return
+    re.lastIndex = 0
+    let firstSnippet: string | null = null
+    let m: RegExpExecArray | null
+    while ((m = re.exec(body)) !== null) {
+      if (!firstSnippet) firstSnippet = makeSnippet(body, m.index, m[0].length)
+      if (m.index === re.lastIndex) re.lastIndex++ // guard against zero-length matches
+      if (firstSnippet) break // one row per node is enough for the list
+    }
+    if (firstSnippet) {
+      matches.push({ nodeIndex, kind: node.kind === 'user' ? 'user' : 'assistant', snippet: firstSnippet })
+    }
+  })
+
+  if (matches.length === 0) return { available: true, indexing: false, groups: [], totalSessions: 0 }
+  const group: GlobalSearchGroup = {
+    session,
+    matches: matches.slice(0, LOCAL_MATCHES_SHOWN),
+    totalMatches: matches.length
+  }
+  return { available: true, indexing: false, groups: [group], totalSessions: 1 }
+}
+
 export function App(): JSX.Element {
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [loadingList, setLoadingList] = useState(true)
@@ -89,7 +150,6 @@ export function App(): JSX.Element {
   const [loadingTx, setLoadingTx] = useState(false)
   const [tab, setTab] = useState<'session' | 'json'>('session')
 
-  const [text, setText] = useState('')
   const [source, setSource] = useState('')
   const [project, setProject] = useState('')
   const [sidebarW, setSidebarW] = useState(380)
@@ -98,14 +158,14 @@ export function App(): JSX.Element {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
-  const [sessionSearchText, setSessionSearchText] = useState('')
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Global (cross-session) search.
-  const [searchScope, setSearchScope] = useState<SearchScope>('session')
-  const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
-  const [globalOpen, setGlobalOpen] = useState(false)
+  // Unified search (modal). One query drives all three scopes.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [searchScope, setSearchScope] = useState<SearchScope>('all')
+  const [wholeWord, setWholeWord] = useState(false)
   const [globalResults, setGlobalResults] = useState<GlobalSearchResponse | null>(null)
   const [globalLoading, setGlobalLoading] = useState(false)
   const [activeResultIndex, setActiveResultIndex] = useState(0)
@@ -123,7 +183,6 @@ export function App(): JSX.Element {
   pendingJumpRef.current = pendingJump
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const findWrapRef = useRef<HTMLDivElement>(null)
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
@@ -201,10 +260,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     setTab('session')
     setScrollTarget(null)
-    // Arriving via a global-search jump keeps the query so highlights survive.
+    // Arriving via a search jump keeps the query so highlights survive.
     if (selected && pendingJumpRef.current?.key === metaKey(selected)) return
     setPendingJump(null) // navigating elsewhere voids any queued jump
-    setSessionSearchText('')
     setActiveMatchIndex(0)
   }, [selected?.source, selected?.id])
 
@@ -224,18 +282,12 @@ export function App(): JSX.Element {
   }, [sessions])
 
   const filtered = useMemo(() => {
-    const q = text.trim().toLowerCase()
     return sessions.filter((s) => {
       if (source && s.source !== source) return false
       if (project && s.repo !== project) return false
-      if (q) {
-        const hay =
-          `${s.summary ?? ''} ${s.repo ?? ''} ${s.cwd} ${s.id} ${s.forkParentId ?? ''} ${s.sourceLabel} ${s.source}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
       return true
     })
-  }, [sessions, text, source, project])
+  }, [sessions, source, project])
 
   const rows = useMemo(
     () => buildRows(filtered, sessions, 'tree', expanded, groupMode, collapsedGroups),
@@ -254,10 +306,13 @@ export function App(): JSX.Element {
 
   const visibleCount = filtered.filter((s) => s.variant !== 'subagent').length
   const totalCount = sessions.filter((s) => s.variant !== 'subagent').length
-  const searchQuery = sessionSearchText.trim()
+
+  // Inline transcript highlight only reflects the query when scoped to this
+  // session — searching "all" shouldn't randomly light up the open transcript.
+  const inlineQuery = searchScope === 'session' ? searchText.trim() : ''
   const searchMatches = useMemo(
-    () => (transcript && !transcript.error ? buildSearchMatches(transcript.nodes, searchQuery) : []),
-    [transcript?.nodes, transcript?.error, searchQuery]
+    () => (transcript && !transcript.error ? buildSearchMatches(transcript.nodes, inlineQuery) : []),
+    [transcript?.nodes, transcript?.error, inlineQuery]
   )
   const activeSearchIndex = searchMatches.length ? Math.min(activeMatchIndex, searchMatches.length - 1) : -1
   const activeMatch = activeSearchIndex >= 0 ? searchMatches[activeSearchIndex] : null
@@ -273,20 +328,11 @@ export function App(): JSX.Element {
 
   const canSearchTranscript = !!transcript && !transcript.error && transcript.nodes.length > 0
 
-  const moveSearch = useCallback(
-    (delta: number): void => {
-      if (searchMatches.length === 0) return
-      setTab('session')
-      setActiveMatchIndex((prev) => (prev + delta + searchMatches.length) % searchMatches.length)
-    },
-    [searchMatches.length]
-  )
-
   useEffect(() => {
     setActiveMatchIndex(0)
-  }, [transcript?.nodes, searchQuery])
+  }, [transcript?.nodes, inlineQuery])
 
-  // Apply a queued global-search jump once the TARGET transcript is in. Gating on
+  // Apply a queued search jump once the TARGET transcript is in. Gating on
   // `transcriptKey` (not just `selected`) is essential: when jumping to another
   // session, `selected` updates immediately but the previous session's transcript
   // lingers in state for a render — firing then would resolve node indexes against
@@ -304,7 +350,7 @@ export function App(): JSX.Element {
     setPendingJump(null)
   }, [pendingJump, transcript, transcriptKey, loadingTx, searchMatches])
 
-  // ── Global search plumbing ─────────────────────────────────────────
+  // ── Search scope plumbing ──────────────────────────────────────────
   const projectContext = useMemo(() => {
     if (project) return { filter: { repo: project } as SearchScopeFilter, label: project }
     if (selected?.repo) return { filter: { repo: selected.repo } as SearchScopeFilter, label: selected.repo }
@@ -316,17 +362,28 @@ export function App(): JSX.Element {
     return null
   }, [project, selected?.repo, selected?.cwd])
 
-  const effectiveScope: SearchScope = searchScope === 'project' && !projectContext ? 'all' : searchScope
+  const effectiveScope: SearchScope =
+    searchScope === 'project' && !projectContext
+      ? 'all'
+      : searchScope === 'session' && !canSearchTranscript
+        ? 'all'
+        : searchScope
   const scopeFilter = effectiveScope === 'project' ? projectContext?.filter : undefined
-  const scopeDisplay = effectiveScope === 'project' ? `project “${projectContext?.label}”` : 'all sessions'
+  const scopeDisplay =
+    effectiveScope === 'project'
+      ? `project “${projectContext?.label}”`
+      : effectiveScope === 'session'
+        ? 'this session'
+        : 'all sessions'
 
+  // Debounced FTS query for project/all scopes. Session scope is computed locally.
   useEffect(() => {
-    if (searchScope === 'session') {
+    if (effectiveScope === 'session') {
       setGlobalResults(null)
       setGlobalLoading(false)
       return
     }
-    const q = sessionSearchText.trim()
+    const q = searchText.trim()
     if (q.length < 2) {
       setGlobalResults(null)
       setGlobalLoading(false)
@@ -335,7 +392,7 @@ export function App(): JSX.Element {
     setGlobalLoading(true)
     const reqId = ++globalReqRef.current
     const timer = window.setTimeout(() => {
-      void window.api.searchSessions(q, scopeFilter).then((res) => {
+      void window.api.searchSessions(q, { scope: scopeFilter, wholeWord }).then((res) => {
         if (globalReqRef.current !== reqId) return
         setGlobalResults(res)
         setGlobalLoading(false)
@@ -344,17 +401,32 @@ export function App(): JSX.Element {
     }, 250)
     return () => window.clearTimeout(timer)
     // indexProgress.done re-runs the query once a background index pass lands.
-  }, [sessionSearchText, searchScope, scopeFilter?.repo, scopeFilter?.cwd, indexProgress.done])
+  }, [searchText, effectiveScope, scopeFilter?.repo, scopeFilter?.cwd, wholeWord, indexProgress.done])
+
+  const localResponse = useMemo(
+    () =>
+      effectiveScope === 'session' && selected && transcript && !transcript.error
+        ? buildLocalResponse(selected, transcript.nodes, searchText.trim(), wholeWord)
+        : null,
+    [effectiveScope, selected, transcript, searchText, wholeWord]
+  )
+
+  const searchResponse = effectiveScope === 'session' ? localResponse : globalResults
+  const searchLoading = effectiveScope === 'session' ? false : globalLoading
 
   const flatRows = useMemo<FlatSearchRow[]>(
-    () => (globalResults?.groups ?? []).flatMap((group) => group.matches.map((match) => ({ group, match }))),
-    [globalResults]
+    () => (searchResponse?.groups ?? []).flatMap((group) => group.matches.map((match) => ({ group, match }))),
+    [searchResponse]
   )
+
+  useEffect(() => {
+    setActiveResultIndex(0)
+  }, [searchText, effectiveScope, wholeWord])
 
   const openSearchResult = useCallback(
     (row: FlatSearchRow): void => {
       const key = metaKey(row.group.session)
-      setGlobalOpen(false)
+      setSearchOpen(false)
       setTab('session')
       setPendingJump({ key, nodeIndex: row.match.nodeIndex })
       if (!selected || metaKey(selected) !== key) setSelected(row.group.session)
@@ -362,87 +434,54 @@ export function App(): JSX.Element {
     [selected]
   )
 
-  function applyScope(scope: SearchScope): void {
-    setSearchScope(scope)
-    setScopeMenuOpen(false)
-    if (scope === 'session') setGlobalOpen(false)
-    else if (sessionSearchText.trim()) setGlobalOpen(true)
-    requestAnimationFrame(() => searchInputRef.current?.focus())
-  }
-
-  useEffect(() => {
-    if (!globalOpen && !scopeMenuOpen) return
-    const onPointerDown = (event: PointerEvent): void => {
-      if (!findWrapRef.current?.contains(event.target as Node)) {
-        setGlobalOpen(false)
-        setScopeMenuOpen(false)
-      }
-    }
-    window.addEventListener('pointerdown', onPointerDown)
-    return () => window.removeEventListener('pointerdown', onPointerDown)
-  }, [globalOpen, scopeMenuOpen])
+  const openSearch = useCallback((): void => {
+    setSearchOpen(true)
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    })
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+      const key = event.key.toLowerCase()
+      if ((event.metaKey || event.ctrlKey) && (key === 'f' || key === 'k')) {
         event.preventDefault()
-        if (event.shiftKey) {
-          // ⌘⇧F — search across all sessions.
-          setSearchScope('all')
-          setGlobalOpen(true)
-        } else {
-          setSearchScope('session')
-          setGlobalOpen(false)
-          setTab('session')
-        }
-        requestAnimationFrame(() => {
-          searchInputRef.current?.focus()
-          searchInputRef.current?.select()
-        })
+        if (event.shiftKey && key === 'f') setSearchScope('all')
+        openSearch()
       }
     }
-
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [openSearch])
 
   function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
-    if (searchScope !== 'session') {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        if (!globalOpen) {
-          setGlobalOpen(true)
-          return
-        }
-        if (flatRows.length === 0) return
-        const delta = event.key === 'ArrowDown' ? 1 : -1
-        setActiveResultIndex((prev) => (prev + delta + flatRows.length) % flatRows.length)
-      } else if (event.key === 'Enter') {
-        event.preventDefault()
-        if (!globalOpen) {
-          setGlobalOpen(true)
-          return
-        }
-        const row = flatRows[Math.min(activeResultIndex, Math.max(0, flatRows.length - 1))]
-        if (row) openSearchResult(row)
-      } else if (event.key === 'Escape') {
-        event.preventDefault()
-        if (globalOpen) setGlobalOpen(false)
-        else if (sessionSearchText) setSessionSearchText('')
-        else event.currentTarget.blur()
-      }
-      return
-    }
-
-    if (event.key === 'Enter') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      moveSearch(event.shiftKey ? -1 : 1)
-    } else if (event.key === 'Escape') {
+      if (flatRows.length === 0) return
+      const delta = event.key === 'ArrowDown' ? 1 : -1
+      setActiveResultIndex((prev) => (prev + delta + flatRows.length) % flatRows.length)
+    } else if (event.key === 'Enter') {
       event.preventDefault()
-      if (sessionSearchText) setSessionSearchText('')
-      else event.currentTarget.blur()
+      const row = flatRows[Math.min(activeResultIndex, Math.max(0, flatRows.length - 1))]
+      if (row) openSearchResult(row)
     }
+    // Escape is handled at the window level (below) so it works even when focus
+    // has moved off the input to a scope tab or the whole-word toggle.
   }
+
+  // Esc clears the query, then closes — regardless of which modal control holds focus.
+  useEffect(() => {
+    if (!searchOpen) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      if (searchText) setSearchText('')
+      else setSearchOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [searchOpen, searchText])
 
   function toggleExpand(id: string): void {
     setExpanded((prev) => {
@@ -530,6 +569,15 @@ export function App(): JSX.Element {
           >
             <MacIcon name="sidebar" />
           </button>
+          <button
+            className="tbtn"
+            type="button"
+            onClick={openSearch}
+            title="Search sessions (⌘F)"
+            aria-label="Search sessions"
+          >
+            <MacIcon name="search" />
+          </button>
         </div>
         <div className="toolbar__sep" />
         <div className="toolbar__main">
@@ -538,139 +586,6 @@ export function App(): JSX.Element {
             {visibleCount !== totalCount ? ` of ${totalCount}` : ''} sessions
           </span>
           <span className="toolbar__spacer" />
-          <div className="findWrap" ref={findWrapRef}>
-            <div
-              className={`find${searchScope === 'session' && !canSearchTranscript ? ' find--disabled' : ''}`}
-            >
-              <button
-                className="find__scope"
-                type="button"
-                title="Search scope"
-                aria-label="Search scope"
-                aria-haspopup="menu"
-                onClick={() => setScopeMenuOpen((open) => !open)}
-              >
-                {SCOPE_LABELS[effectiveScope]}
-                <MacIcon name="chevDown" />
-              </button>
-              <MacIcon name="search" className="find-i" />
-              <input
-                ref={searchInputRef}
-                value={sessionSearchText}
-                disabled={searchScope === 'session' && !canSearchTranscript}
-                onFocus={() => {
-                  if (searchScope === 'session') setTab('session')
-                  else if (sessionSearchText.trim()) setGlobalOpen(true)
-                }}
-                onChange={(event) => {
-                  setSessionSearchText(event.target.value)
-                  if (searchScope === 'session') setTab('session')
-                  else setGlobalOpen(true)
-                }}
-                onKeyDown={onSearchKeyDown}
-                placeholder={
-                  searchScope === 'session'
-                    ? 'Find in session'
-                    : effectiveScope === 'project'
-                      ? `Search in ${projectContext?.label ?? 'project'}`
-                      : 'Search all sessions'
-                }
-                spellCheck={false}
-              />
-              {searchScope === 'session' ? (
-                <>
-                  <span className="find__count">
-                    {searchQuery
-                      ? searchMatches.length
-                        ? `${activeSearchIndex + 1} of ${searchMatches.length}`
-                        : '0'
-                      : ''}
-                  </span>
-                  <button
-                    className="find__step"
-                    type="button"
-                    disabled={searchMatches.length === 0}
-                    title="Previous match"
-                    aria-label="Previous match"
-                    onClick={() => moveSearch(-1)}
-                  >
-                    <MacIcon name="chevUp" />
-                  </button>
-                  <button
-                    className="find__step"
-                    type="button"
-                    disabled={searchMatches.length === 0}
-                    title="Next match"
-                    aria-label="Next match"
-                    onClick={() => moveSearch(1)}
-                  >
-                    <MacIcon name="chevDown" />
-                  </button>
-                </>
-              ) : (
-                <span className="find__count">
-                  {globalResults && searchQuery.length >= 2 ? `${globalResults.groups.length}` : ''}
-                </span>
-              )}
-            </div>
-
-            {scopeMenuOpen ? (
-              <div className="dropdownMenu menu find__scopeMenu" role="menu">
-                <button
-                  className="dropdownMenu__item menu__item"
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={searchScope === 'session'}
-                  onClick={() => applyScope('session')}
-                >
-                  <span className="dropdownMenu__check menu__check">
-                    {searchScope === 'session' ? <MacIcon name="check" /> : null}
-                  </span>
-                  <span className="menu__txt">This session</span>
-                </button>
-                <button
-                  className="dropdownMenu__item menu__item"
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={searchScope === 'project'}
-                  disabled={!projectContext}
-                  onClick={() => applyScope('project')}
-                >
-                  <span className="dropdownMenu__check menu__check">
-                    {searchScope === 'project' ? <MacIcon name="check" /> : null}
-                  </span>
-                  <span className="menu__txt">
-                    {projectContext ? `This project — ${projectContext.label}` : 'This project'}
-                  </span>
-                </button>
-                <button
-                  className="dropdownMenu__item menu__item"
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={searchScope === 'all'}
-                  onClick={() => applyScope('all')}
-                >
-                  <span className="dropdownMenu__check menu__check">
-                    {searchScope === 'all' ? <MacIcon name="check" /> : null}
-                  </span>
-                  <span className="menu__txt">All sessions</span>
-                </button>
-              </div>
-            ) : null}
-
-            {searchScope !== 'session' && globalOpen ? (
-              <GlobalSearch
-                response={globalResults}
-                loading={globalLoading}
-                query={searchQuery}
-                scopeLabel={scopeDisplay}
-                activeIndex={activeResultIndex}
-                progress={indexProgress}
-                onHover={setActiveResultIndex}
-                onOpen={openSearchResult}
-              />
-            ) : null}
-          </div>
           <div className="segmented" aria-label="Viewer tab">
             <button className={`seg${tab === 'session' ? ' seg--on' : ''}`} onClick={() => setTab('session')}>
               Session
@@ -694,31 +609,29 @@ export function App(): JSX.Element {
 
       <div className="body mac-body">
         {sidebarCollapsed ? null : (
-        <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
-          <FilterBar
-            text={text}
-            source={source}
-            project={project}
-            groupMode={groupMode}
-            sources={sources}
-            onText={setText}
-            onSource={setSource}
-            onProject={setProject}
-            onGroupMode={setGroupMode}
-          />
-          {loadingList ? (
-            <div className="list list--empty">Scanning agent histories...</div>
-          ) : (
-            <SessionList
-              rows={rows}
-              selectedKey={selected ? metaKey(selected) : null}
-              onSelect={setSelected}
-              onContextMenu={onContextMenu}
-              onToggle={toggleExpand}
-              onToggleGroup={toggleGroup}
+          <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
+            <FilterBar
+              source={source}
+              project={project}
+              groupMode={groupMode}
+              sources={sources}
+              onSource={setSource}
+              onProject={setProject}
+              onGroupMode={setGroupMode}
             />
-          )}
-        </aside>
+            {loadingList ? (
+              <div className="list list--empty">Scanning agent histories...</div>
+            ) : (
+              <SessionList
+                rows={rows}
+                selectedKey={selected ? metaKey(selected) : null}
+                onSelect={setSelected}
+                onContextMenu={onContextMenu}
+                onToggle={toggleExpand}
+                onToggleGroup={toggleGroup}
+              />
+            )}
+          </aside>
         )}
 
         {sidebarCollapsed ? null : <div className="divider mac-divider" onMouseDown={startDrag} />}
@@ -731,7 +644,7 @@ export function App(): JSX.Element {
             tab={tab}
             parentSession={selectedForkParent}
             onJumpToParent={selectedForkParent ? () => jumpToSession(selectedForkParent) : undefined}
-            searchQuery={searchQuery}
+            searchQuery={inlineQuery}
             searchHitsByNode={searchHitsByNode}
             activeMatch={activeMatch}
             scrollTarget={scrollTarget}
@@ -741,6 +654,29 @@ export function App(): JSX.Element {
           />
         </main>
       </div>
+
+      {searchOpen ? (
+        <GlobalSearch
+          query={searchText}
+          onQuery={setSearchText}
+          onKeyDown={onSearchKeyDown}
+          scope={effectiveScope}
+          onScope={setSearchScope}
+          projectLabel={projectContext?.label ?? null}
+          hasSession={canSearchTranscript}
+          wholeWord={wholeWord}
+          onWholeWord={setWholeWord}
+          response={searchResponse}
+          loading={searchLoading}
+          scopeLabel={scopeDisplay}
+          activeIndex={activeResultIndex}
+          progress={indexProgress}
+          inputRef={searchInputRef}
+          onHover={setActiveResultIndex}
+          onOpen={openSearchResult}
+          onClose={() => setSearchOpen(false)}
+        />
+      ) : null}
 
       {rowMenu ? (
         <div

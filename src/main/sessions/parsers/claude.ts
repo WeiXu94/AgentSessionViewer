@@ -97,6 +97,7 @@ async function parseSessionInfo(
   cwd: string;
   gitBranch?: string;
   customTitle?: string;
+  aiTitle?: string;
   firstUserMessage: string;
   firstTimestamp?: string;
   lastTimestamp?: string;
@@ -116,6 +117,8 @@ async function parseSessionInfo(
   let gitBranch = '';
   let fallbackGitBranch = '';
   let customTitle = '';
+  let aiTitle = '';
+  let fallbackAiTitle = '';
   let firstUserMessage = '';
   let fallbackFirstUserMessage = '';
   let forkParentId = '';
@@ -155,6 +158,17 @@ async function parseSessionInfo(
     const rawCustomTitle = (parsed as Record<string, unknown>).customTitle;
     if (isTargetRecord && typeof rawCustomTitle === 'string' && rawCustomTitle.trim()) {
       customTitle = rawCustomTitle;
+    }
+    // `ai-title` records carry Claude Code's auto-generated session title (the
+    // same one its own session picker shows). Keep the LAST one — the title is
+    // re-generated and re-appended as the conversation evolves, so the final
+    // occurrence is the most current. The record's own sessionId can differ from
+    // this file's (it's stamped under the originating thread in fork/continue
+    // chains), so keep a fallback that ignores the target-session match.
+    const rawAiTitle = (parsed as Record<string, unknown>).aiTitle;
+    if (typeof rawAiTitle === 'string' && rawAiTitle.trim()) {
+      fallbackAiTitle = rawAiTitle;
+      if (isTargetRecord) aiTitle = rawAiTitle;
     }
     const timestamp = getClaudeMessageTimestamp(msg);
     if (timestamp) {
@@ -202,6 +216,7 @@ async function parseSessionInfo(
     cwd: cwd || fallbackCwd,
     gitBranch: gitBranch || fallbackGitBranch,
     customTitle,
+    aiTitle: aiTitle || fallbackAiTitle,
     firstUserMessage: firstUserMessage || fallbackFirstUserMessage,
     firstTimestamp: firstTimestamp || fallbackFirstTimestamp,
     lastTimestamp: lastTimestamp || fallbackLastTimestamp,
@@ -224,8 +239,12 @@ export async function parseClaudeSessions(options: SessionParseOptions = {}): Pr
       const stats = options.lightweight ? { lines: 0, bytes: fileStats.size } : await getFileStats(filePath);
 
       const subagent = detectClaudeSubagent(filePath);
+      // Title precedence: an explicit user rename (customTitle) wins; then Claude's
+      // own auto-generated ai-title (what its session picker shows — present on most
+      // sessions); only then fall back to the first user message or subagent desc.
       const summary =
         cleanSummary(info.customTitle || '', 80) ||
+        cleanSummary(info.aiTitle || '', 80) ||
         cleanSummary(info.firstUserMessage) ||
         (subagent?.description ? cleanSummary(subagent.description) : '');
       const repo = extractRepoFromCwd(info.cwd);

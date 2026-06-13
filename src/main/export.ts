@@ -173,7 +173,10 @@ export function buildMarkdownExport(
   const out: string[] = []
 
   out.push(`# ${exportTitle(meta, fallback)}`)
-  out.push(headerFields(meta, fallback).map((f) => `**${f.label}:** ${f.value}`).join('\n'))
+  // One list item per field: list items are block-level, so each meta line stays
+  // on its own line in every Markdown renderer (a `\n`-joined run collapses into
+  // one wrapped paragraph, which looked messy — mirror the HTML export's table).
+  out.push(headerFields(meta, fallback).map((f) => `- **${f.label}:** ${f.value}`).join('\n'))
   if (payload.truncated) out.push('> ⚠️ The session file exceeded the size guard; this export is partial.')
   out.push('---')
 

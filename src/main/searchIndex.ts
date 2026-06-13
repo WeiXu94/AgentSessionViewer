@@ -8,7 +8,7 @@ import type {
   GlobalSearchMatch,
   GlobalSearchResponse,
   SearchIndexProgress,
-  SearchScopeFilter,
+  SearchOptions,
   SessionMeta
 } from '../shared/ipc.js'
 import { loadTranscript } from './transcript.js'
@@ -276,17 +276,80 @@ async function runSync(metas: SessionMeta[], onProgress?: (p: SearchIndexProgres
 
 // ── Query ────────────────────────────────────────────────────────────
 
+// Snippet highlight markers (match the renderer, which splits on these). Kept as
+// escapes so no literal control bytes land in the source file.
+const MARK_START = String.fromCharCode(2)
+const MARK_END = String.fromCharCode(3)
+
 /**
  * Build an FTS5 MATCH expression from free text: each token quoted (so user
- * input can't break the query syntax) and prefix-starred for find-as-you-type.
+ * input can't break the query syntax). Prefix-starred for find-as-you-type
+ * unless `wholeWord`, where tokens match only complete words.
  */
-function ftsExpression(query: string): string {
+function ftsExpression(query: string, wholeWord: boolean): string {
   const tokens = query
     .split(/\s+/u)
     .map((t) => t.replace(/"/gu, '').trim())
     .filter(Boolean)
   if (tokens.length === 0) return ''
-  return tokens.map((t) => `"${t.replace(/\\/gu, '')}"*`).join(' ')
+  return tokens.map((t) => `"${t.replace(/\\/gu, '')}"${wholeWord ? '' : '*'}`).join(' ')
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+}
+
+/**
+ * If the session title matches the query, return the title with every matched
+ * span wrapped in highlight markers; otherwise null. Used to rank title hits
+ * above body hits (the title is the most meaningful place a query can land).
+ *
+ * Tokenized the same way as `ftsExpression` (AND-of-tokens), so a multi-word
+ * query matches a title containing all its words in any order — consistent with
+ * how the body FTS search behaves.
+ */
+function titleSnippet(title: string, query: string, wholeWord: boolean): string | null {
+  const tokens = query
+    .split(/\s+/u)
+    .map((t) => t.trim())
+    .filter(Boolean)
+  if (!title || tokens.length === 0) return null
+
+  const ranges: Array<[number, number]> = []
+  for (const token of tokens) {
+    const pattern = wholeWord ? `\\b${escapeRegExp(token)}\\b` : escapeRegExp(token)
+    let re: RegExp
+    try {
+      re = new RegExp(pattern, 'giu')
+    } catch {
+      return null
+    }
+    let found = false
+    let m: RegExpExecArray | null
+    while ((m = re.exec(title)) !== null) {
+      found = true
+      ranges.push([m.index, m.index + m[0].length])
+      if (m.index === re.lastIndex) re.lastIndex++ // guard against zero-length matches
+    }
+    if (!found) return null // every token must appear for the title to count as a match
+  }
+
+  // Merge overlapping/adjacent ranges, then splice in the markers in order.
+  ranges.sort((a, b) => a[0] - b[0])
+  const merged: Array<[number, number]> = []
+  for (const [start, end] of ranges) {
+    const last = merged[merged.length - 1]
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end)
+    else merged.push([start, end])
+  }
+
+  let out = ''
+  let pos = 0
+  for (const [start, end] of merged) {
+    out += title.slice(pos, start) + MARK_START + title.slice(start, end) + MARK_END
+    pos = end
+  }
+  return out + title.slice(pos)
 }
 
 interface MatchRow {
@@ -302,14 +365,18 @@ interface MatchRow {
 
 export function searchSessions(
   query: string,
-  scope: SearchScopeFilter | undefined,
-  resolveMeta: (source: string, id: string, originalPath: string) => SessionMeta | undefined
+  options: SearchOptions | undefined,
+  resolveMeta: (source: string, id: string, originalPath: string) => SessionMeta | undefined,
+  allMetas: SessionMeta[] = []
 ): GlobalSearchResponse {
   const handle = openDb()
   const indexing = !lastProgress.done
   if (!handle) return { available: false, indexing, groups: [], totalSessions: 0 }
 
-  const expression = ftsExpression(query)
+  const scope = options?.scope
+  const wholeWord = !!options?.wholeWord
+
+  const expression = ftsExpression(query, wholeWord)
   if (!expression) return { available: true, indexing, groups: [], totalSessions: 0 }
 
   const where: string[] = ['messages_fts MATCH ?']
@@ -349,6 +416,7 @@ export function searchSessions(
     originalPath: string
     matches: GlobalSearchMatch[]
     totalMatches: number
+    titleSnippet?: string
   }
   const groups = new Map<string, GroupAcc>()
   for (const row of rows) {
@@ -366,13 +434,42 @@ export function searchSessions(
     groups.set(row.session_key, group)
   }
 
+  // Title matches: scanned against the LIVE session metadata (fresh titles, not
+  // the possibly-stale indexed copy) so a title hit ranks a session to the top
+  // even when its body has no match.
+  const scoped = allMetas.filter((m) => {
+    if (scope?.repo) return m.repo === scope.repo
+    if (scope?.cwd) return m.cwd === scope.cwd
+    return true
+  })
+  for (const m of scoped) {
+    const snip = titleSnippet(m.summary ?? '', query, wholeWord)
+    if (!snip) continue
+    const key = sessionKey(m)
+    const group =
+      groups.get(key) ??
+      ({ source: m.source, id: m.id, originalPath: m.originalPath, matches: [], totalMatches: 0 } as GroupAcc)
+    group.titleSnippet = snip
+    groups.set(key, group)
+  }
+
   const out: GlobalSearchGroup[] = []
   for (const group of groups.values()) {
     const meta = resolveMeta(group.source, group.id, group.originalPath)
     if (!meta) continue // session disappeared since indexing; sync will prune it
-    group.matches.sort((a, b) => a.nodeIndex - b.nodeIndex)
-    out.push({ session: meta, matches: group.matches, totalMatches: group.totalMatches })
+    const matches = [...group.matches].sort((a, b) => a.nodeIndex - b.nodeIndex)
+    let totalMatches = group.totalMatches
+    if (group.titleSnippet) {
+      matches.unshift({ nodeIndex: 0, kind: 'title', snippet: group.titleSnippet })
+      totalMatches += 1
+      if (matches.length > MATCHES_PER_SESSION) matches.length = MATCHES_PER_SESSION
+    }
+    out.push({ session: meta, matches, totalMatches, titleMatch: !!group.titleSnippet })
   }
+
+  // Title hits first; within each tier keep the existing order (body bm25 rank,
+  // then title-only groups). V8's sort is stable, so this is a clean partition.
+  out.sort((a, b) => Number(!!b.titleMatch) - Number(!!a.titleMatch))
 
   return { available: true, indexing, groups: out, totalSessions: out.length }
 }

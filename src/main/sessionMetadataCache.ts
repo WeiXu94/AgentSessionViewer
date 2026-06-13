@@ -7,7 +7,8 @@ import { adapters, ALL_TOOLS } from './sessions/parsers/registry.js'
 import type { SessionSource, UnifiedSession } from './sessions/types/index.js'
 
 // v4: claude subagent sessions get filename-derived ids (collision fix).
-const CACHE_VERSION = 4
+// v5: claude session titles now read the generated `ai-title` record.
+const CACHE_VERSION = 5
 const CACHE_FILE = 'session-metadata-cache.json'
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000
 const MAX_ANCESTOR_FINGERPRINTS_PER_SESSION = 6

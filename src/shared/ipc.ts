@@ -87,7 +87,8 @@ export interface SearchScopeFilter {
 /** Snippet text is split on \x02 (match start) and \x03 (match end) markers for highlighting. */
 export interface GlobalSearchMatch {
   nodeIndex: number
-  kind: 'user' | 'assistant'
+  /** 'title' marks a hit in the session title (ranked above body hits). */
+  kind: 'user' | 'assistant' | 'title'
   snippet: string
 }
 
@@ -95,6 +96,15 @@ export interface GlobalSearchGroup {
   session: SessionMeta
   matches: GlobalSearchMatch[]
   totalMatches: number
+  /** True when the query matched this session's title (sorted to the top). */
+  titleMatch?: boolean
+}
+
+/** Options for a cross-session search query. */
+export interface SearchOptions {
+  scope?: SearchScopeFilter
+  /** Match whole words only (no prefix/substring matching). */
+  wholeWord?: boolean
 }
 
 export interface GlobalSearchResponse {
@@ -125,7 +135,7 @@ export interface SessionsAPI {
   list: (force?: boolean) => Promise<SessionMeta[]>
   /** `id` is required to disambiguate DB-backed sources where many sessions share one originalPath. */
   loadTranscript: (originalPath: string, source: string, id: string) => Promise<TranscriptPayload>
-  searchSessions: (query: string, scope?: SearchScopeFilter) => Promise<GlobalSearchResponse>
+  searchSessions: (query: string, options?: SearchOptions) => Promise<GlobalSearchResponse>
   onSearchIndexProgress: (callback: (progress: SearchIndexProgress) => void) => () => void
   exportSession: (originalPath: string, source: string, id: string, format: ExportFormat) => Promise<ExportResult>
   reveal: (path: string) => Promise<void>
