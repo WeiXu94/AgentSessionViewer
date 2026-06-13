@@ -5,8 +5,21 @@
   --accent-tint: color-mix(in srgb, var(--accent) 18%, transparent);
   --sys: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
   --mono: "SF Mono", ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
-  --r-md: 8px;
+  /* Radius scale — one ramp the whole app derives from. xs: chips/inline code,
+     sm: controls (rows, fields, menu items), md: grouped controls + code blocks,
+     lg: cards (message bubbles, collapsible blocks), pop: floating surfaces
+     (menus, modal, panels, tooltips), pill: capsules. */
+  --r-xs: 4px;
   --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-pop: 12px;
+  --r-pill: 999px;
+  /* Shared frosted-glass treatment for every floating surface. */
+  --glass: blur(34px) saturate(1.8);
+  /* Search highlight — one yellow used by inline, results, and jump highlights. */
+  --mark: #ffd60a;
+  --mark-fg: #1d1d1f;
   --row-h: 54px;
   --toolbar: rgb(246 246 248 / 0.72);
   --sidebar: rgb(238 238 242 / 0.62);
@@ -310,7 +323,7 @@ input {
   flex-shrink: 0;
   gap: 0;
   padding: 2px;
-  border-radius: 7px;
+  border-radius: var(--r-md);
   background: var(--seg-track);
   box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.04);
 }
@@ -324,7 +337,7 @@ input {
   height: 22px;
   padding: 0 11px;
   border: none;
-  border-radius: 5.5px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label);
   font-size: 12px;
@@ -595,7 +608,7 @@ input {
   height: 22px;
   padding: 0 6px 0 9px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   color: var(--accent-fg);
   font-size: 11.5px;
@@ -629,11 +642,11 @@ input {
   z-index: 60;
   min-width: 210px;
   padding: 5px;
-  border-radius: 9px;
+  border-radius: var(--r-pop);
   background: var(--pop);
   box-shadow: var(--pop-shadow);
-  backdrop-filter: blur(34px) saturate(1.8);
-  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   animation: pop 0.12s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
@@ -674,7 +687,7 @@ input {
   min-height: 26px;
   padding: 4px 9px 4px 8px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label);
   font-size: 13px;
@@ -993,7 +1006,7 @@ input {
 
 .vchip {
   padding: 0 5px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--field);
   color: var(--label-2);
   font-size: 10px;
@@ -1131,7 +1144,7 @@ input {
   width: max-content;
   max-width: min(420px, calc(100vw - 48px));
   padding: 7px 9px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--pop);
   color: var(--label);
   box-shadow: var(--pop-shadow);
@@ -1164,7 +1177,7 @@ input {
   height: 15px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--field);
   color: var(--label-2);
   cursor: pointer;
@@ -1308,21 +1321,6 @@ input {
   --floating-control-width: 40px;
 }
 
-.userOutline__svg,
-.blockToggle__icon {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.blockToggle {
-  flex-shrink: 0;
-}
-
 /* Floating block mode button */
 .blockModeButton {
   position: absolute;
@@ -1374,7 +1372,7 @@ input {
   width: max-content;
   max-width: min(200px, calc(100vw - 48px));
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-md);
   background: var(--pop);
   color: var(--label);
   box-shadow: var(--pop-shadow);
@@ -1459,11 +1457,11 @@ input {
   display: flex;
   flex-direction: column;
   transform: translateY(-50%) translateX(8px);
-  border-radius: 10px;
+  border-radius: var(--r-pop);
   background: var(--pop);
   box-shadow: var(--pop-shadow);
-  backdrop-filter: blur(34px) saturate(1.8);
-  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
@@ -1501,7 +1499,7 @@ input {
   width: 100%;
   padding: 7px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label);
   font-size: 12px;
@@ -1524,7 +1522,7 @@ input {
   min-width: 18px;
   height: 18px;
   flex-shrink: 0;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--field);
   color: var(--label-2);
   font-size: 10px;
@@ -1593,7 +1591,7 @@ input {
 .msg,
 .bubble__text {
   padding: 11px 14px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   color: var(--label);
   font-size: 13.5px;
   line-height: 1.55;
@@ -1615,7 +1613,7 @@ input {
 
 .msg--md code {
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--field);
   font-size: 12.5px;
 }
@@ -1623,7 +1621,7 @@ input {
 .msg--md pre {
   margin: 8px 0;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--field);
   overflow-x: auto;
 }
@@ -1695,7 +1693,7 @@ input {
 
 .msg--md img {
   max-width: 100%;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 
 .bubble--user .msg,
@@ -1729,7 +1727,7 @@ input {
   align-items: center;
   margin-right: 7px;
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   border: 1px solid color-mix(in srgb, var(--warn) 38%, var(--sep));
   color: var(--warn);
   font-size: 10px;
@@ -1748,17 +1746,17 @@ input {
 .searchmark {
   padding: 0 1px;
   border-radius: 2px;
-  background: color-mix(in srgb, #ffd60a 65%, transparent);
-  color: #1d1d1f;
+  background: color-mix(in srgb, var(--mark) 65%, transparent);
+  color: var(--mark-fg);
 }
 
 .searchMark--active {
-  background: #ffd60a;
+  background: var(--mark);
 }
 
 .block {
   overflow: hidden;
-  border-radius: 11px;
+  border-radius: var(--r-lg);
   background: var(--content-2);
   box-shadow: inset 0 0 0 0.5px var(--sep);
 }
@@ -1806,39 +1804,6 @@ input {
 
 details[open] .block__tri {
   transform: rotate(90deg);
-}
-
-.bubble__icon,
-.block__icon {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: var(--field);
-  color: var(--label-2);
-}
-
-.block--thinking .block__icon {
-  background: color-mix(in srgb, var(--thinking) 15%, transparent);
-  color: var(--thinking);
-}
-
-.block--tool_call .block__icon,
-.block--tool_result .block__icon {
-  background: color-mix(in srgb, var(--tool) 15%, transparent);
-  color: var(--tool);
-}
-
-.block__icon svg {
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .bubble__title,
@@ -2064,11 +2029,11 @@ details[open] .block__tri {
   width: min(680px, calc(100vw - 48px));
   max-height: min(70vh, 620px);
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--r-pop);
   background: var(--pop);
   box-shadow: var(--pop-shadow);
-  backdrop-filter: blur(34px) saturate(1.8);
-  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   animation: pop 0.13s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
@@ -2114,7 +2079,7 @@ details[open] .block__tri {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-2);
   cursor: pointer;
@@ -2149,7 +2114,7 @@ details[open] .block__tri {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: rgb(0 0 0 / 0.05);
 }
 
@@ -2162,7 +2127,7 @@ details[open] .block__tri {
 .searchModal__scope {
   padding: 4px 11px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-2);
   font-size: 12px;
@@ -2202,7 +2167,7 @@ details[open] .block__tri {
   height: 22px;
   padding: 0 4px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-3);
   font-family: var(--mono, ui-monospace, monospace);
@@ -2255,8 +2220,8 @@ details[open] .block__tri {
   margin: 6px -6px 2px;
   padding: 7px 14px 5px;
   background: var(--pop);
-  backdrop-filter: blur(34px) saturate(1.8);
-  -webkit-backdrop-filter: blur(34px) saturate(1.8);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
 }
 
 .globalSearch__list > .globalSearch__session:first-child {
@@ -2307,7 +2272,7 @@ details[open] .block__tri {
   width: 100%;
   padding: 5px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-2);
   font-size: 12px;
@@ -2352,8 +2317,8 @@ details[open] .block__tri {
 }
 
 .globalSearch__snippet mark {
-  background: #ffd60a;
-  color: #1d1d1f;
+  background: var(--mark);
+  color: var(--mark-fg);
   border-radius: 2px;
   padding: 0 1px;
 }
@@ -2406,8 +2371,8 @@ button.globalSearch__more--btn:hover {
    rendered markdown without replacing it with raw text. The text highlight alone
    marks the spot (no surrounding row box). */
 ::highlight(jump-search) {
-  background-color: #ffd60a;
-  color: #1d1d1f;
+  background-color: var(--mark);
+  color: var(--mark-fg);
 }
 
 /* ── Export menu (viewer header) ────────────────────────────────────── */
