@@ -221,8 +221,15 @@ async function runSync(metas: SessionMeta[], onProgress?: (p: SearchIndexProgres
     const key = sessionKey(meta)
     try {
       const payload = await loadTranscript(meta.originalPath, meta.source, meta.id)
-      const rows: Array<{ nodeIndex: number; kind: string; text: string }> = []
-      if (!payload.error) {
+      // A transient read failure (locked db, EBUSY/ENOENT race) comes back as
+      // `{ error, nodes: [] }`, not a throw. Leave the existing rows and the
+      // stale fingerprint untouched so the next sync retries — deleting + writing
+      // a current fingerprint here would silently evict the session from search
+      // forever (an idle session's file never changes again).
+      if (payload.error) {
+        console.warn(`[searchIndex] skipping ${meta.source}/${meta.id} (transcript error): ${payload.error}`)
+      } else {
+        const rows: Array<{ nodeIndex: number; kind: string; text: string }> = []
         payload.nodes.forEach((node, nodeIndex) => {
           if (node.kind !== 'user' && node.kind !== 'assistant') return
           // Inherited fork nodes duplicate the parent session's content.
@@ -231,29 +238,29 @@ async function runSync(metas: SessionMeta[], onProgress?: (p: SearchIndexProgres
           if (!text) return
           rows.push({ nodeIndex, kind: node.kind, text: text.slice(0, MAX_MESSAGE_CHARS) })
         })
-      }
 
-      handle.exec('BEGIN')
-      try {
-        deleteMessages.run(key)
-        for (const row of rows) insertMessage.run(key, row.nodeIndex, row.kind, row.text)
-        upsertSession.run(
-          key,
-          meta.source,
-          meta.id,
-          meta.repo ?? '',
-          meta.cwd ?? '',
-          meta.summary ?? '',
-          meta.originalPath,
-          meta.updatedAt,
-          meta.bytes,
-          rows.length,
-          Date.now()
-        )
-        handle.exec('COMMIT')
-      } catch (err) {
-        handle.exec('ROLLBACK')
-        throw err
+        handle.exec('BEGIN')
+        try {
+          deleteMessages.run(key)
+          for (const row of rows) insertMessage.run(key, row.nodeIndex, row.kind, row.text)
+          upsertSession.run(
+            key,
+            meta.source,
+            meta.id,
+            meta.repo ?? '',
+            meta.cwd ?? '',
+            meta.summary ?? '',
+            meta.originalPath,
+            meta.updatedAt,
+            meta.bytes,
+            rows.length,
+            Date.now()
+          )
+          handle.exec('COMMIT')
+        } catch (err) {
+          handle.exec('ROLLBACK')
+          throw err
+        }
       }
     } catch (err) {
       console.warn(`[searchIndex] failed to index ${meta.source}/${meta.id}:`, (err as Error)?.message ?? err)

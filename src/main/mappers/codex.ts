@@ -93,24 +93,35 @@ export function codexNodes(records: unknown[]): ViewNode[] {
           break
         }
         case 'function_call': {
-          const out = p.call_id ? outputs.get(p.call_id) : undefined
-          b.add(i, 'tool_call', formatArgs(p.arguments), { role: 'assistant', toolName: p.name, title: p.name || 'tool' })
-          if (out !== undefined) b.add(i, 'tool_result', out || '(no output)', { title: 'Tool result' })
+          const callId = typeof p.call_id === 'string' ? p.call_id : undefined
+          const out = callId ? outputs.get(callId) : undefined
+          b.add(i, 'tool_call', formatArgs(p.arguments), {
+            role: 'assistant',
+            toolName: p.name,
+            title: p.name || 'tool',
+            toolUseId: callId
+          })
+          if (out !== undefined) b.add(i, 'tool_result', out || '(no output)', { title: 'Tool result', toolUseId: callId })
           break
         }
         case 'custom_tool_call': {
-          const out = p.call_id ? outputs.get(p.call_id) : undefined
+          const callId = typeof p.call_id === 'string' ? p.call_id : undefined
+          const out = callId ? outputs.get(callId) : undefined
           b.add(i, 'tool_call', typeof p.input === 'string' ? p.input : formatArgs(p.input), {
             role: 'assistant',
             toolName: p.name,
-            title: p.name || 'tool'
+            title: p.name || 'tool',
+            toolUseId: callId
           })
-          if (out !== undefined) b.add(i, 'tool_result', out || '(no output)', { title: 'Tool result' })
+          if (out !== undefined) b.add(i, 'tool_result', out || '(no output)', { title: 'Tool result', toolUseId: callId })
           break
         }
         case 'web_search_call': {
           const query = String(p.action?.query || p.action?.queries?.[0] || '')
-          b.add(i, 'tool_call', query, { role: 'assistant', toolName: 'web_search', title: 'web_search' })
+          // No matching output record — give it a unique id so export pairing never
+          // attaches a later tool's result to this (perpetually output-less) call.
+          const callId = typeof p.call_id === 'string' ? p.call_id : typeof p.id === 'string' ? p.id : `web_search:${i}`
+          b.add(i, 'tool_call', query, { role: 'assistant', toolName: 'web_search', title: 'web_search', toolUseId: callId })
           break
         }
         case 'function_call_output':

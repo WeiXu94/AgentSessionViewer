@@ -1,4 +1,4 @@
-import { marked } from 'marked'
+import { Marked } from 'marked'
 import type { SessionMeta, TranscriptPayload, ViewNode } from '../shared/ipc.js'
 
 // Session → Markdown / HTML exporters.
@@ -64,7 +64,7 @@ function headerFields(meta: SessionMeta | undefined, fallback: ExportIdentity): 
 type TurnPart =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }
-  | { type: 'tool'; name: string; input: string; output?: string; isError?: boolean }
+  | { type: 'tool'; name: string; input: string; toolUseId?: string; output?: string; isError?: boolean }
   | { type: 'note'; text: string }
 
 interface Turn {
@@ -106,20 +106,39 @@ export function buildTurns(nodes: ViewNode[]): Turn[] {
         open('assistant').parts.push({
           type: 'tool',
           name: node.toolName || node.title || 'tool',
-          input: node.text
+          input: node.text,
+          toolUseId: node.toolUseId
         })
         break
       case 'tool_result': {
         const turn = open('assistant')
         const isError = node.title === 'Tool error'
-        // Pair FIFO with the earliest unanswered call — with parallel tool
-        // calls the results arrive in call order after all the calls.
-        const pending = turn.parts.find((p): p is TurnPart & { type: 'tool' } => p.type === 'tool' && p.output === undefined)
+        // Pair by tool-call id when available — parallel calls complete out of
+        // call order, so FIFO would attach outputs to the wrong calls. Fall back
+        // to the earliest unanswered call only for sources without ids.
+        const byId = node.toolUseId
+          ? turn.parts.find(
+              (p): p is TurnPart & { type: 'tool' } =>
+                p.type === 'tool' && p.toolUseId === node.toolUseId && p.output === undefined
+            )
+          : undefined
+        const pending =
+          byId ??
+          turn.parts.find(
+            (p): p is TurnPart & { type: 'tool' } => p.type === 'tool' && p.toolUseId === undefined && p.output === undefined
+          )
         if (pending) {
           pending.output = node.text
           pending.isError = isError
         } else {
-          turn.parts.push({ type: 'tool', name: node.toolName || node.title || 'tool result', input: '', output: node.text, isError })
+          turn.parts.push({
+            type: 'tool',
+            name: node.toolName || node.title || 'tool result',
+            input: '',
+            toolUseId: node.toolUseId,
+            output: node.text,
+            isError
+          })
         }
         break
       }
@@ -199,8 +218,42 @@ function escapeHtml(text: string): string {
     .replace(/"/gu, '&quot;')
 }
 
+/** Reject script-bearing schemes (javascript:, data:, vbscript:); allow http(s)/mailto/relative. */
+function safeUrl(href: string): string | null {
+  const url = (href ?? '').trim()
+  if (/^(?:https?:|mailto:|#|\/|\.\/|\.\.\/)/iu.test(url)) return url
+  if (!/^[a-z][a-z0-9+.-]*:/iu.test(url)) return url // scheme-less → relative, safe
+  return null
+}
+
+// The exported .html is a standalone file the user may open in any browser, so
+// transcript text must never become live markup. This marked instance renders
+// raw HTML tokens as escaped text (matching the in-app viewer, which only looks
+// safe because it runs sandboxed) and drops javascript:/data: link & image URLs.
+const exportMarked = new Marked({ async: false, gfm: true })
+exportMarked.use({
+  renderer: {
+    html(token): string {
+      return escapeHtml(typeof token === 'string' ? token : token.text)
+    },
+    link(token): string {
+      const href = safeUrl(token.href)
+      const inner = this.parser.parseInline(token.tokens)
+      if (!href) return inner
+      const title = token.title ? ` title="${escapeHtml(token.title)}"` : ''
+      return `<a href="${escapeHtml(href)}"${title}>${inner}</a>`
+    },
+    image(token): string {
+      const href = safeUrl(token.href)
+      if (!href) return escapeHtml(token.text || '')
+      const title = token.title ? ` title="${escapeHtml(token.title)}"` : ''
+      return `<img src="${escapeHtml(href)}" alt="${escapeHtml(token.text || '')}"${title}>`
+    }
+  }
+})
+
 function md(text: string): string {
-  return marked.parse(text, { async: false }) as string
+  return exportMarked.parse(text, { async: false }) as string
 }
 
 function fmtBytes(n: number): string {

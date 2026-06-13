@@ -112,6 +112,9 @@ export function App(): JSX.Element {
   const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
   const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number } | null>(null)
+  // Identity (metaKey) of the session whose transcript is currently in `transcript`.
+  // null while loading — a queued jump waits for this to match its target.
+  const [transcriptKey, setTranscriptKey] = useState<string | null>(null)
 
   const reqRef = useRef(0)
   const globalReqRef = useRef(0)
@@ -175,14 +178,21 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!selected) {
       setTranscript(null)
+      setTranscriptKey(null)
       return
     }
     const reqId = ++reqRef.current
     setLoadingTx(true)
     setTranscript(null)
+    // The previous session's transcript lingers in state for one render after
+    // `selected` changes; clear the identity stamp now so a queued jump can't be
+    // applied against it (the pendingJump effect gates on transcriptKey).
+    setTranscriptKey(null)
+    const key = metaKey(selected)
     window.api.loadTranscript(selected.originalPath, selected.source, selected.id).then((tx) => {
       if (reqRef.current === reqId) {
         setTranscript(tx)
+        setTranscriptKey(key)
         setLoadingTx(false)
       }
     })
@@ -276,11 +286,14 @@ export function App(): JSX.Element {
     setActiveMatchIndex(0)
   }, [transcript?.nodes, searchQuery])
 
-  // Apply a queued global-search jump once the target transcript is in.
-  // Declared after the reset effect above so it wins on the same commit.
+  // Apply a queued global-search jump once the TARGET transcript is in. Gating on
+  // `transcriptKey` (not just `selected`) is essential: when jumping to another
+  // session, `selected` updates immediately but the previous session's transcript
+  // lingers in state for a render — firing then would resolve node indexes against
+  // the wrong transcript and clear the jump before the real one loads.
   useEffect(() => {
     if (!pendingJump || !transcript || loadingTx) return
-    if (!selected || metaKey(selected) !== pendingJump.key) return
+    if (transcriptKey !== pendingJump.key) return
     if (transcript.error) {
       setPendingJump(null) // target failed to load; don't fire on a later retry
       return
@@ -289,7 +302,7 @@ export function App(): JSX.Element {
     if (matchIdx >= 0) setActiveMatchIndex(matchIdx)
     else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current })
     setPendingJump(null)
-  }, [pendingJump, transcript, loadingTx, selected, searchMatches])
+  }, [pendingJump, transcript, transcriptKey, loadingTx, searchMatches])
 
   // ── Global search plumbing ─────────────────────────────────────────
   const projectContext = useMemo(() => {

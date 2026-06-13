@@ -133,14 +133,16 @@ export function claudeNodes(
           b.add(rawIndex, 'tool_call', formatArgs(blk.input), {
             role: 'assistant',
             toolName: blk.name,
-            title: blk.name || 'tool'
+            title: blk.name || 'tool',
+            toolUseId: typeof blk.id === 'string' ? blk.id : undefined
           })
           break
         case 'tool_result': {
           const text = toolResultText(blk.content)
           b.add(rawIndex, 'tool_result', text || '(no output)', {
             role: 'user',
-            title: blk.is_error ? 'Tool error' : 'Tool result'
+            title: blk.is_error ? 'Tool error' : 'Tool result',
+            toolUseId: typeof blk.tool_use_id === 'string' ? blk.tool_use_id : undefined
           })
           break
         }

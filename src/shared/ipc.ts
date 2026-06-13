@@ -49,6 +49,12 @@ export interface ViewNode {
   title?: string
   text: string
   toolName?: string
+  /**
+   * Provider tool-call id (Anthropic `tool_use_id`, OpenAI `call_id`, Pi `id`).
+   * Set on `tool_call` and the matching `tool_result` so consumers can pair them
+   * exactly instead of by position — parallel calls complete out of call order.
+   */
+  toolUseId?: string
   /** Index into TranscriptPayload.records this node was derived from. */
   rawIndex: number
   /** UTF-8 byte length of `text` (renderer collapses oversized nodes). */

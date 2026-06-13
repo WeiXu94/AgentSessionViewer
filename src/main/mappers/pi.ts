@@ -43,7 +43,8 @@ export function piNodes(records: unknown[]): ViewNode[] {
       const text = toolResultText(msg.content)
       b.add(i, 'tool_result', text || '(no output)', {
         title: msg.isError ? 'Tool error' : msg.toolName || 'Tool result',
-        toolName: msg.toolName
+        toolName: msg.toolName,
+        toolUseId: typeof msg.toolCallId === 'string' ? msg.toolCallId : undefined
       })
       return
     }
@@ -70,7 +71,8 @@ export function piNodes(records: unknown[]): ViewNode[] {
           b.add(i, 'tool_call', formatArgs(blk.arguments), {
             role: 'assistant',
             toolName: blk.name,
-            title: blk.name || 'tool'
+            title: blk.name || 'tool',
+            toolUseId: typeof blk.id === 'string' ? blk.id : undefined
           })
           break
         default:

@@ -9,7 +9,7 @@ export class NodeBuilder {
     rawIndex: number,
     kind: NodeKind,
     text: string,
-    extra: Partial<Pick<ViewNode, 'role' | 'title' | 'toolName' | 'inherited' | 'inheritedFromId'>> = {}
+    extra: Partial<Pick<ViewNode, 'role' | 'title' | 'toolName' | 'toolUseId' | 'inherited' | 'inheritedFromId'>> = {}
   ): void {
     const t = text ?? ''
     this.nodes.push({
