@@ -26,6 +26,11 @@ import type { TranscriptPayload } from '../shared/ipc.js'
  * are not cached at all — they're rare and one would dominate the budget (and
  * flushing the hot set to hold a single giant session is the classic LRU
  * pathology).
+ *
+ * A single-flight map coalesces concurrent loads of the same session: if a read
+ * is already in progress, additional callers share its promise instead of
+ * starting a second file read + mapper pass. `getOrLoadTranscript` is the entry
+ * point that ties the resolved cache, the in-flight map, and the loader together.
  */
 
 interface Entry {
@@ -48,6 +53,10 @@ const MAX_ENTRY_BYTES = 32 * 1024 * 1024
 // key is the least-recently-used, and delete+set moves a key to the MRU end.
 const cache = new Map<string, Entry>()
 let totalBytes = 0
+
+// Loads currently in progress, keyed the same way. Lets concurrent callers share
+// one read+parse instead of each doing their own (request coalescing).
+const inFlight = new Map<string, Promise<TranscriptPayload>>()
 
 export function transcriptCacheKey(source: string, id: string, originalPath: string): string {
   return `${source}:${id}:${originalPath}`
@@ -97,8 +106,40 @@ export function putCachedTranscript(
   }
 }
 
+/**
+ * Resolve a transcript through the cache: serve a fresh cached payload, join an
+ * in-progress load for the same session, or run `loader` and cache its result.
+ *
+ * Coalescing keys on session identity, so a burst of `loadTranscript` calls (a
+ * double-click, rapid navigation) triggers a single file read + mapper pass and
+ * everyone awaits it. A rejected load is not cached and clears the in-flight slot
+ * so the next call retries cleanly.
+ */
+export function getOrLoadTranscript(
+  key: string,
+  fp: Fingerprint,
+  loader: () => Promise<TranscriptPayload>
+): Promise<TranscriptPayload> {
+  const cached = getCachedTranscript(key, fp)
+  if (cached) return Promise.resolve(cached)
+
+  const pending = inFlight.get(key)
+  if (pending) return pending
+
+  const promise = (async () => {
+    const payload = await loader()
+    putCachedTranscript(key, payload, fp, fp.size)
+    return payload
+  })()
+  // Clear the slot once settled (resolved or rejected) so failures don't stick.
+  void promise.catch(() => undefined).finally(() => inFlight.delete(key))
+  inFlight.set(key, promise)
+  return promise
+}
+
 /** Test/utility hook: drop everything. */
 export function clearTranscriptCache(): void {
   cache.clear()
   totalBytes = 0
+  inFlight.clear()
 }
