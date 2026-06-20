@@ -7,6 +7,7 @@ import { genericNodes, reconstructPayload } from './mappers/generic.js'
 import { loadOpenCodePayload } from './mappers/opencode.js'
 import { piNodes } from './mappers/pi.js'
 import { scanJsonlLines } from './sessions/utils/jsonl.js'
+import { getCachedTranscript, putCachedTranscript, transcriptCacheKey } from './transcriptCache.js'
 
 const MAX_BYTES = 96 * 1024 * 1024 // hard guard against pathological files
 
@@ -67,17 +68,28 @@ export async function loadTranscript(originalPath: string, source: string, id: s
     const lower = originalPath.toLowerCase()
 
     // File-based sources keep one file per session; only read raw lines when the path
-    // is a per-session text file (not a shared SQLite db like opencode/crush).
-    if (isFile && lower.endsWith('.jsonl')) {
-      const { records, truncated } = await readJsonlRecords(originalPath)
-      const nodes = source === 'claude' ? claudeTranscriptNodes(records, id) : nodesFor(source, records, id)
-      return { source, originalPath, reconstructed: false, records, nodes, truncated }
-    }
+    // is a per-session text file (not a shared SQLite db like opencode/crush). These
+    // are the only payloads we LRU-cache: the cache key is session identity (not the
+    // path, which DB-backed sources share) and a fresh stat validates the fingerprint.
+    if (isFile && (lower.endsWith('.jsonl') || lower.endsWith('.json'))) {
+      const fp = { mtimeMs: stat!.mtimeMs, size: stat!.size }
+      const cacheKey = transcriptCacheKey(source, id, originalPath)
+      const hit = getCachedTranscript(cacheKey, fp)
+      if (hit) return hit
 
-    if (isFile && lower.endsWith('.json')) {
-      const raw = JSON.parse(fs.readFileSync(originalPath, 'utf8'))
-      const records = toRecordArray(raw)
-      return { source, originalPath, reconstructed: false, records, nodes: nodesFor(source, records, id) }
+      let payload: TranscriptPayload
+      if (lower.endsWith('.jsonl')) {
+        const { records, truncated } = await readJsonlRecords(originalPath)
+        const nodes = source === 'claude' ? claudeTranscriptNodes(records, id) : nodesFor(source, records, id)
+        payload = { source, originalPath, reconstructed: false, records, nodes, truncated }
+      } else {
+        const raw = JSON.parse(fs.readFileSync(originalPath, 'utf8'))
+        const records = toRecordArray(raw)
+        payload = { source, originalPath, reconstructed: false, records, nodes: nodesFor(source, records, id) }
+      }
+
+      putCachedTranscript(cacheKey, payload, fp, stat!.size)
+      return payload
     }
 
     return await reconstructPayload(source, originalPath, getSession(source, id))
