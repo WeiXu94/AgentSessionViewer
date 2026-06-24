@@ -78,12 +78,35 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
     topIndexRef.current = nextIndex
     setTopIndex(nextIndex)
   }, [])
+  // Per-kind size estimate. The flat 140px guess was wildly off: in a typical
+  // agent session ~80% of rows are collapsed structural nodes (thinking, tool
+  // calls/results) that render as a single ~53px header, so 140 overshot the
+  // true content height by ~70%. That made `getOffsetForIndex` place outline
+  // jumps far deeper than the target's real position; scrolling back up then
+  // forced the virtualizer to reconcile tens of thousands of phantom pixels as
+  // rows measured to their true (much smaller) heights — the "rollback then
+  // crawl" lag. Estimating per kind keeps the offset math close to reality so
+  // there is little left to reconcile. (Measured values: collapsed ≈ 53, user
+  // ≈ 108, assistant ≈ 105 median / 193 mean — leave room for the heavy tail.)
+  const estimateSize = useCallback(
+    (index: number): number => {
+      switch (nodes[index]?.kind) {
+        case 'user':
+          return 110
+        case 'assistant':
+          return 175
+        default:
+          return 56
+      }
+    },
+    [nodes]
+  )
   const virt = useVirtualizer({
     count: nodes.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 140,
+    estimateSize,
     overscan: 6,
-    measureElement: (el) => el?.getBoundingClientRect().height ?? 140
+    measureElement: (el) => el?.getBoundingClientRect().height ?? 56
   })
   const virtualItems = virt.getVirtualItems()
   const readTopIndex = useCallback((): void => {
