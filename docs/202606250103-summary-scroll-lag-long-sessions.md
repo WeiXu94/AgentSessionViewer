@@ -67,13 +67,50 @@ Typecheck passes. No visual regression (collapsed blocks, thinking, prose all la
 cleanly; the smaller estimate does not introduce overlap because measured heights still
 replace estimates on render).
 
+## Hardening (follow-up): runtime-probed, content-based estimate
+
+The per-kind constants above fix the *common* (tool-heavy) session but are still
+session-tuned: a prose-heavy session under-predicts (every assistant guessed at 175
+when each is ~800px) and re-introduces the same lag in the other direction, and the
+collapsed `56` is a theme-dependent literal. Replaced the constants with a
+content-derived estimate, computed from metrics **probed from the live DOM**:
+
+- A hidden sample bubble is measured on mount / session-change / resize →
+  `collapsedH`, prose base + per-line height, and chars-per-line for prose and the
+  monospace block body (`measureRowMetrics`). Theme/font/zoom-proof; no literals.
+- Each row's height is estimated from its own text (`wrappedLines × lineHeight +
+  base`), and **expanded** collapsible blocks are estimated too (summary +
+  body capped at the `.block__body` `max-height: 420px`), keyed on `blockOpenMode`.
+- Estimates are **precomputed once** per `(nodes, metrics, blockOpenMode)` into an
+  array; `estimateSize` is an O(1) lookup — the per-row text scan never runs in the
+  hot path (it would otherwise fire O(N) per layout recompute while scrolling).
+
+### Why not other approaches
+- **Freeze the offset / never re-measure** — can't: the offset *is* the layout, so a
+  frozen-but-wrong height overflows/overlaps the next row. The only correct form is
+  pre-measuring every row once up front, which spikes CPU/memory and doesn't scale to
+  huge sessions. Content-based estimation is the scalable approximation.
+- **Running-average estimate (adaptive over time)** — fragile: react-virtual only
+  re-anchors scroll for *measured-row* resizes, not for estimate changes on unmeasured
+  rows, so a drifting estimate causes *uncompensated* mid-session jumps. A per-row,
+  time-invariant content estimate avoids this.
+
+### Verification of the hardened version (same jump+scroll-up)
+| metric | flat 140 | per-kind const | content-based |
+|---|--:|--:|--:|
+| fresh estimate total (true 48,368) | 82,257 (+70%) | 47,640 (−1.5%) | 49,734 (+2.8%) |
+| height drift over 16 scroll-up gestures | 4,149px | 548px | **184px** |
+| **expand-all** estimate total (true 127,755) | ~83,440 (−35%) | ~49,734 (−61%) | **127,056 (−1%)** |
+| overlaps / gaps (collapsed & expanded) | — | 0 / 0 | 0 / 0 |
+
 ## Notes / residual
 
 - The estimate only affects *unmeasured* rows; once a row renders it is measured exactly,
-  so the few tall assistant-prose outliers (up to 1333px) self-correct on first view.
-- `blockOpenMode === 'expanded'` (manual "expand all") makes the collapsed kinds tall;
-  the 56px estimate then under-predicts them. That is a deliberate, less-common action
-  (not the reported issue) and rows still measure on render. Left as-is.
+  so any individual mis-estimate (e.g. a node dominated by a code block or table) self-
+  corrects on first view.
+- Content→pixel mapping for prose uses an average char width (~0.5em proportional,
+  ~0.6em monospace); markdown reflow (headers, tables, images) makes it approximate, but
+  it is content-*proportional* (long → tall), which is what keeps reconciliation small.
 
 ## Repro tooling (scratch, not committed)
 

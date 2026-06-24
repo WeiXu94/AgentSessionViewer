@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ViewNode } from '../../../shared/ipc'
 import { MacIcon } from './MacIcons'
 import { displayNodeText, NodeBubble } from './NodeBubble'
@@ -53,6 +53,126 @@ function topVisibleIndex(items: Array<{ index: number; start: number }>, scrollT
   return topIndex
 }
 
+// Row-height estimation for the virtualizer. The virtualizer only knows a row's
+// true height once it has rendered it; for every off-screen row it relies on
+// these estimates to place offsets and the scrollbar. A flat guess (the old
+// `140`) is wildly wrong because ~80% of rows are collapsed one-line headers
+// while a few prose rows are 1000px+ — so jumping to a late message landed at a
+// bogus offset and scrolling back forced tens of thousands of px of reconciliation
+// (the "rollback then crawl" lag). Instead we estimate per row from its content,
+// using metrics probed from the live DOM so the numbers stay correct across
+// theme/font/zoom changes. The estimate array is precomputed once per
+// (nodes, metrics, blockOpenMode) and indexed in O(1) — the per-row text scan
+// never runs inside the hot `estimateSize` path.
+interface RowMetrics {
+  /** Height of a collapsed block (single-line summary + bubble padding). */
+  collapsedH: number
+  /** Height of a user/assistant bubble with a single line of text. */
+  proseBaseH: number
+  /** Added height per extra wrapped line of prose. */
+  proseLineH: number
+  /** Approx. characters that fit on one prose line at the current width. */
+  proseCPL: number
+  /** Height per line of an expanded block's monospace body. */
+  monoLineH: number
+  /** Approx. characters per line in the monospace body. */
+  monoCPL: number
+}
+
+const DEFAULT_ROW_METRICS: RowMetrics = {
+  collapsedH: 53,
+  proseBaseH: 62,
+  proseLineH: 21,
+  proseCPL: 90,
+  monoLineH: 19,
+  monoCPL: 110
+}
+
+// Mirror of `.transcript` horizontal padding (22+22) and `.bubble__text` /
+// `.block__body` horizontal padding (14+14), and the `.block__body`
+// `max-height` plus its border+padding chrome. Kept in sync with styles.css.
+const TRANSCRIPT_PAD_X = 44
+const BODY_PAD_X = 28
+const MAX_EXPANDED_BODY = 420
+const EXPANDED_BODY_CHROME = 25
+const MAX_ESTIMATE_TEXT = 200_000
+
+function isCollapsibleKind(kind: ViewNode['kind']): boolean {
+  return kind !== 'user' && kind !== 'assistant'
+}
+
+/** Count wrapped display lines for `text` at `cpl` chars/line, capped for huge nodes. */
+function wrappedLines(text: string, cpl: number): number {
+  const t = text.length > MAX_ESTIMATE_TEXT ? text.slice(0, MAX_ESTIMATE_TEXT) : text
+  let lines = 0
+  let start = 0
+  for (let i = 0; i <= t.length; i++) {
+    if (i === t.length || t.charCodeAt(i) === 10) {
+      const len = i - start
+      lines += len === 0 ? 1 : Math.ceil(len / cpl)
+      start = i + 1
+    }
+  }
+  return Math.max(1, lines)
+}
+
+function estimateNodeHeight(node: ViewNode, m: RowMetrics, expanded: boolean): number {
+  if (isCollapsibleKind(node.kind)) {
+    if (!expanded) return m.collapsedH
+    const body = Math.min(MAX_EXPANDED_BODY, wrappedLines(node.text, m.monoCPL) * m.monoLineH)
+    return m.collapsedH + body + EXPANDED_BODY_CHROME
+  }
+  return m.proseBaseH + wrappedLines(node.text, m.proseCPL) * m.proseLineH
+}
+
+// Probe real heights/metrics from a hidden sample appended to the scroller, so
+// estimates track the actual theme/font instead of hardcoded pixel guesses.
+function measureRowMetrics(scroller: HTMLElement): RowMetrics {
+  const innerW = Math.max(120, scroller.clientWidth - TRANSCRIPT_PAD_X)
+  const probe = document.createElement('div')
+  probe.style.cssText = `position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;width:${innerW}px;`
+  probe.innerHTML =
+    '<div class="bubble bubble--tool_call"><details class="block block--tool_call"><summary class="bubble__summary block__summary"><span class="block__tri"></span><span class="bubble__title block__title">probe</span><span class="bubble__size block__size">1 B</span></summary><pre class="bubble__pre block__body">x</pre></details></div>' +
+    '<div class="bubble bubble--assistant"><div class="bubble__head"><span class="bubble__role">A</span></div><div class="bubble__text msg"><span class="msg--md"><p>x</p></span></div></div>' +
+    '<div class="bubble bubble--assistant"><div class="bubble__head"><span class="bubble__role">A</span></div><div class="bubble__text msg"><span class="msg--md"><p>x<br>y</p></span></div></div>'
+  scroller.appendChild(probe)
+  try {
+    const [collapsedEl, oneEl, twoEl] = Array.from(probe.children) as HTMLElement[]
+    const collapsedH = Math.round(collapsedEl.getBoundingClientRect().height) || DEFAULT_ROW_METRICS.collapsedH
+    const oneH = oneEl.getBoundingClientRect().height
+    const twoH = twoEl.getBoundingClientRect().height
+    const proseLineH = Math.max(14, Math.round(twoH - oneH)) || DEFAULT_ROW_METRICS.proseLineH
+    const proseBaseH = Math.max(0, Math.round(oneH - proseLineH)) || DEFAULT_ROW_METRICS.proseBaseH
+    const proseFont = parseFloat(getComputedStyle(oneEl.querySelector('.msg--md') as Element).fontSize) || 13.5
+    const monoBody = collapsedEl.querySelector('.block__body') as Element
+    const monoFont = parseFloat(getComputedStyle(monoBody).fontSize) || 12
+    const monoLine = parseFloat(getComputedStyle(monoBody).lineHeight)
+    const contentW = innerW - BODY_PAD_X
+    return {
+      collapsedH,
+      proseBaseH,
+      proseLineH,
+      // Proportional fonts average ~0.5em/char, monospace ~0.6em.
+      proseCPL: Math.max(20, Math.floor(contentW / (proseFont * 0.5))),
+      monoLineH: Number.isFinite(monoLine) ? Math.round(monoLine) : Math.round(monoFont * 1.6),
+      monoCPL: Math.max(20, Math.floor(contentW / (monoFont * 0.6)))
+    }
+  } finally {
+    scroller.removeChild(probe)
+  }
+}
+
+function sameMetrics(a: RowMetrics, b: RowMetrics): boolean {
+  return (
+    a.collapsedH === b.collapsedH &&
+    a.proseBaseH === b.proseBaseH &&
+    a.proseLineH === b.proseLineH &&
+    a.proseCPL === b.proseCPL &&
+    a.monoLineH === b.monoLineH &&
+    a.monoCPL === b.monoCPL
+  )
+}
+
 function CollapseBlocksIcon(): JSX.Element {
   return <MacIcon name="collapseAll" className="blockModeButton__icon" />
 }
@@ -78,35 +198,38 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
     topIndexRef.current = nextIndex
     setTopIndex(nextIndex)
   }, [])
-  // Per-kind size estimate. The flat 140px guess was wildly off: in a typical
-  // agent session ~80% of rows are collapsed structural nodes (thinking, tool
-  // calls/results) that render as a single ~53px header, so 140 overshot the
-  // true content height by ~70%. That made `getOffsetForIndex` place outline
-  // jumps far deeper than the target's real position; scrolling back up then
-  // forced the virtualizer to reconcile tens of thousands of phantom pixels as
-  // rows measured to their true (much smaller) heights — the "rollback then
-  // crawl" lag. Estimating per kind keeps the offset math close to reality so
-  // there is little left to reconcile. (Measured values: collapsed ≈ 53, user
-  // ≈ 108, assistant ≈ 105 median / 193 mean — leave room for the heavy tail.)
+  const [rowMetrics, setRowMetrics] = useState<RowMetrics>(DEFAULT_ROW_METRICS)
+  // Probe the live DOM for real row metrics on mount, on session change, and on
+  // resize, so estimates track the actual theme/font/width rather than constants.
+  useLayoutEffect(() => {
+    const scroller = parentRef.current
+    if (!scroller) return
+    const update = (): void => {
+      const next = measureRowMetrics(scroller)
+      setRowMetrics((prev) => (sameMetrics(prev, next) ? prev : next))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(scroller)
+    return () => ro.disconnect()
+  }, [nodes])
+
+  // Precompute each row's estimated height once per (nodes, metrics, mode); the
+  // hot `estimateSize` path is then an O(1) array lookup, never a text scan.
+  const estimates = useMemo(() => {
+    const expanded = blockOpenMode === 'expanded'
+    return nodes.map((node) => estimateNodeHeight(node, rowMetrics, expanded))
+  }, [nodes, rowMetrics, blockOpenMode])
   const estimateSize = useCallback(
-    (index: number): number => {
-      switch (nodes[index]?.kind) {
-        case 'user':
-          return 110
-        case 'assistant':
-          return 175
-        default:
-          return 56
-      }
-    },
-    [nodes]
+    (index: number): number => estimates[index] ?? rowMetrics.proseBaseH,
+    [estimates, rowMetrics.proseBaseH]
   )
   const virt = useVirtualizer({
     count: nodes.length,
     getScrollElement: () => parentRef.current,
     estimateSize,
     overscan: 6,
-    measureElement: (el) => el?.getBoundingClientRect().height ?? 56
+    measureElement: (el) => el?.getBoundingClientRect().height ?? rowMetrics.collapsedH
   })
   const virtualItems = virt.getVirtualItems()
   const readTopIndex = useCallback((): void => {
