@@ -1,6 +1,5 @@
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
-import { shell } from 'electron'
 
 /**
  * Deleting a session differs by storage model:
@@ -22,13 +21,31 @@ export interface DeleteSessionResult {
   error?: string
 }
 
+/** Optional overrides so the file-trash path is testable without Electron. */
+export interface DeleteSessionDeps {
+  trashItem?: (path: string) => Promise<void>
+}
+
 /** Sources whose `originalPath` is a shared SQLite database, not a per-session file. */
 const DB_BACKED_SOURCES = new Set(['opencode', 'crush', 'kilo-code'])
 
+interface SqliteStatement {
+  run(...params: unknown[]): unknown
+  all(...params: unknown[]): unknown[]
+}
 interface SqliteDatabase {
-  prepare(sql: string): { run(...params: unknown[]): unknown; all(...params: unknown[]): unknown[] }
+  prepare(sql: string): SqliteStatement
   close(): void
   exec(sql: string): void
+}
+
+// Lazy-resolved so the module imports in non-Electron contexts (tests). The
+// ESM `import { shell } from 'electron'` throws outside the Electron runtime;
+// deferring to a CJS require keeps that failure at call time, not import time.
+const nodeRequire = createRequire(import.meta.url)
+function defaultTrashItem(path: string): Promise<void> {
+  const { shell } = nodeRequire('electron') as { shell: { trashItem: (p: string) => Promise<void> } }
+  return shell.trashItem(path)
 }
 
 function isDbBacked(source: string, originalPath: string): boolean {
@@ -37,8 +54,7 @@ function isDbBacked(source: string, originalPath: string): boolean {
 
 function openReadWrite(dbPath: string): SqliteDatabase | null {
   try {
-    const require = createRequire(import.meta.url)
-    const sqlite = require('node:sqlite') as {
+    const sqlite = nodeRequire('node:sqlite') as {
       DatabaseSync: new (filename: string, options?: { open?: boolean; readOnly?: boolean }) => SqliteDatabase
     }
     return new sqlite.DatabaseSync(dbPath, { open: true, readOnly: false })
@@ -93,7 +109,13 @@ function deleteFromKiloDb(dbPath: string, sessionId: string): void {
   }
 }
 
-export async function deleteSession(source: string, id: string, originalPath: string): Promise<DeleteSessionResult> {
+export async function deleteSession(
+  source: string,
+  id: string,
+  originalPath: string,
+  deps: DeleteSessionDeps = {}
+): Promise<DeleteSessionResult> {
+  const trashItem = deps.trashItem ?? defaultTrashItem
   try {
     if (isDbBacked(source, originalPath)) {
       if (!fs.existsSync(originalPath)) {
@@ -110,7 +132,7 @@ export async function deleteSession(source: string, id: string, originalPath: st
     if (!originalPath || !fs.existsSync(originalPath)) {
       return { ok: false, error: 'Session file not found.' }
     }
-    await shell.trashItem(originalPath)
+    await trashItem(originalPath)
     return { ok: true, kind: 'file' }
   } catch (err) {
     return { ok: false, error: (err as Error)?.message ?? String(err) }
