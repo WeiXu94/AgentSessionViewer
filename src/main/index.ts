@@ -14,8 +14,9 @@ import {
 } from 'electron'
 import type { ExportFormat, SearchIndexProgress, SearchOptions } from '../shared/ipc.js'
 import { buildHtmlExport, buildMarkdownExport } from './export.js'
-import { getSessionMeta, listSessions } from './indexer.js'
+import { invalidateSessionCache, getSessionMeta, listSessions } from './indexer.js'
 import { searchSessions, syncSearchIndex } from './searchIndex.js'
+import { deleteSession } from './deleteSession.js'
 import { loadTranscript } from './transcript.js'
 
 const APP_NAME = 'AgentSessionViewer'
@@ -120,6 +121,16 @@ ipcMain.handle('transcript:load', (_e, originalPath: string, source: string, id:
   loadTranscript(originalPath, source, id)
 )
 
+ipcMain.handle('sessions:delete', async (_e, originalPath: string, source: string, id: string) => {
+  const result = await deleteSession(source, id, originalPath)
+  if (result.ok) {
+    // Force a rescan on the next list() so the deleted session disappears and
+    // the search index prunes it (syncSearchIndex drops keys not in the live set).
+    invalidateSessionCache()
+  }
+  return result
+})
+
 ipcMain.handle('search:query', async (_e, query: string, options?: SearchOptions) => {
   // listSessions() backs resolveMeta AND supplies the live titles used for the
   // title-weighted ranking, so its result is fed straight into the search.
@@ -177,6 +188,21 @@ ipcMain.handle('shell:openExternal', async (_e, url: string) => {
 })
 
 ipcMain.handle('system:accentColor', () => getSystemAccentColor())
+
+ipcMain.handle('dialog:confirm', async (_e, message: string, detail?: string) => {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+  const opts = {
+    type: 'warning' as const,
+    buttons: ['Delete', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Delete Session',
+    message,
+    detail
+  }
+  const result = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+  return result.response === 0
+})
 
 // ── Lifecycle ────────────────────────────────────────────────────────
 app.whenReady().then(() => {

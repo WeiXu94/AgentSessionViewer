@@ -133,10 +133,19 @@ export interface ExportResult {
   error?: string
 }
 
+export interface DeleteSessionResult {
+  ok: boolean
+  /** 'file' = trashed a file/dir, 'db' = deleted rows from a SQLite db. */
+  kind?: 'file' | 'db'
+  error?: string
+}
+
 export interface SessionsAPI {
   list: (force?: boolean) => Promise<SessionMeta[]>
   /** `id` is required to disambiguate DB-backed sources where many sessions share one originalPath. */
   loadTranscript: (originalPath: string, source: string, id: string) => Promise<TranscriptPayload>
+  /** Move a session to trash (file-backed) or delete its rows (DB-backed). */
+  deleteSession: (originalPath: string, source: string, id: string) => Promise<DeleteSessionResult>
   searchSessions: (query: string, options?: SearchOptions) => Promise<GlobalSearchResponse>
   onSearchIndexProgress: (callback: (progress: SearchIndexProgress) => void) => () => void
   exportSession: (originalPath: string, source: string, id: string, format: ExportFormat) => Promise<ExportResult>
@@ -144,6 +153,8 @@ export interface SessionsAPI {
   openPath: (path: string) => Promise<void>
   copy: (text: string) => Promise<void>
   openExternal: (url: string) => Promise<void>
+  /** Native confirm dialog; returns true for the affirmative. */
+  confirm: (message: string, detail?: string) => Promise<boolean>
   getAccentColor: () => Promise<string>
   onAccentColorChanged: (callback: (accent: string) => void) => () => void
 }

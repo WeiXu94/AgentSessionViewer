@@ -707,6 +707,15 @@ input {
   cursor: default;
 }
 
+.menu__item--danger {
+  color: #ff3b30;
+}
+
+.menu__item--danger:hover:not(:disabled) {
+  background: #ff3b30;
+  color: #fff;
+}
+
 .dropdownMenu__check,
 .menu__check {
   display: grid;

@@ -247,3 +247,12 @@ export function writeSessionMetadataCache(sessions: UnifiedSession[]): void {
     // Cache writes are best-effort; session discovery should never fail because of them.
   }
 }
+
+/** Remove the on-disk metadata cache so the next listing rescans from scratch. */
+export function invalidateSessionMetadataCache(): void {
+  try {
+    fs.unlinkSync(cachePath())
+  } catch {
+    // Already absent — nothing to invalidate.
+  }
+}

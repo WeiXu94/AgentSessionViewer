@@ -25,7 +25,14 @@ import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
 import { accentForeground, buildRows, type GroupMode, metaKey } from './util'
 
-type RowMenuAction = 'copy-resume' | 'copy-id' | 'copy-path' | 'reveal' | 'open-cwd' | 'filter-project'
+type RowMenuAction =
+  | 'copy-resume'
+  | 'copy-id'
+  | 'copy-path'
+  | 'reveal'
+  | 'open-cwd'
+  | 'filter-project'
+  | 'delete'
 
 interface RowMenuState {
   session: SessionMeta
@@ -527,7 +534,8 @@ export function App(): JSX.Element {
 
   function onContextMenu(session: SessionMeta, point: { x: number; y: number }): void {
     const menuWidth = 260
-    const menuHeight = session.repo ? 238 : 200
+    // delete separator + item add ~40px over the repo variant.
+    const menuHeight = session.repo ? 278 : 240
     setRowMenu({
       session,
       x: Math.max(8, Math.min(point.x, window.innerWidth - menuWidth - 8)),
@@ -559,6 +567,27 @@ export function App(): JSX.Element {
       case 'filter-project':
         setProject(s.repo || '')
         break
+      case 'delete': {
+        const isDb = s.originalPath.toLowerCase().endsWith('.db')
+        const verb = isDb ? 'delete' : 'move to Trash'
+        const detail = isDb
+          ? `This permanently removes the session's rows from the shared ${s.sourceLabel} database. This cannot be undone.`
+          : `This moves the session file to the macOS Trash.`
+        const ok = await window.api.confirm(
+          `${verb.charAt(0).toUpperCase() + verb.slice(1)} this ${s.sourceLabel} session?`,
+          detail
+        )
+        if (!ok) break
+        const res = await window.api.deleteSession(s.originalPath, s.source, s.id)
+        if (!res.ok) {
+          await window.api.confirm(`Failed to delete session: ${res.error ?? 'unknown error'}`)
+          break
+        }
+        // Clear selection if the deleted session was active, then rescan.
+        if (selected && metaKey(selected) === metaKey(s)) setSelected(null)
+        await refresh(true)
+        break
+      }
     }
   }
 
@@ -773,6 +802,19 @@ export function App(): JSX.Element {
           >
             <span className="menu__txt">
               {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
+            </span>
+          </button>
+          <div className="dropdownMenu__separator menu__sep" />
+          <button
+            className="dropdownMenu__item menu__item menu__item--danger"
+            type="button"
+            role="menuitem"
+            onClick={() => void runRowMenuAction('delete')}
+          >
+            <span className="menu__txt">
+              {rowMenu.session.originalPath.toLowerCase().endsWith('.db')
+                ? 'Delete Session'
+                : 'Move to Trash'}
             </span>
           </button>
         </div>

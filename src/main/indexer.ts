@@ -1,7 +1,11 @@
 import { adapters, ALL_TOOLS } from './sessions/parsers/registry.js'
 import type { SessionSource, UnifiedSession } from './sessions/types/index.js'
 import type { SessionMeta } from '../shared/ipc.js'
-import { readSessionMetadataCache, writeSessionMetadataCache } from './sessionMetadataCache.js'
+import {
+  invalidateSessionMetadataCache,
+  readSessionMetadataCache,
+  writeSessionMetadataCache
+} from './sessionMetadataCache.js'
 
 let cache: SessionMeta[] | null = null
 // Keyed by source+id, not originalPath: DB-backed sources (opencode, crush) share
@@ -110,6 +114,18 @@ export async function listSessions(force = false): Promise<SessionMeta[]> {
   const metas = setSessionCache(all)
   writeSessionMetadataCache(all)
   return metas
+}
+
+/**
+ * Drop the in-memory + on-disk session caches so the next `listSessions` rescans.
+ * Called after a session is deleted (DB-backed deletes mutate a shared file the
+ * cache fingerprint can't detect, so we force a fresh scan).
+ */
+export function invalidateSessionCache(): void {
+  cache = null
+  byKey.clear()
+  metaByKey.clear()
+  invalidateSessionMetadataCache()
 }
 
 /** Look up the full UnifiedSession (needed for DB-backed transcript reconstruction). */
