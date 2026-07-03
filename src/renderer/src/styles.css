@@ -860,17 +860,25 @@ input {
   cursor: default;
   user-select: none;
   overflow: hidden;
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    height 220ms ease,
-    margin 220ms ease,
-    padding 220ms ease;
 }
 
-.row--removing {
+/* TEMP: three delete-animation variants under evaluation. Switch via the
+ * [data-del-anim] attribute on .app. */
+
+/* Variant 1 — fade + collapse: fade out with a small nudge, then collapse.
+[data-del-anim='fade'] .row {
+  transition:
+    opacity 260ms ease,
+    transform 260ms ease,
+    height 300ms ease 220ms,
+    margin-top 300ms ease 220ms,
+    margin-bottom 300ms ease 220ms,
+    padding-top 300ms ease 220ms,
+    padding-bottom 300ms ease 220ms;
+}
+[data-del-anim='fade'] .row--removing {
   opacity: 0;
-  transform: translateX(-8px);
+  transform: translateX(-10px);
   height: 0;
   margin-top: 0;
   margin-bottom: 0;
@@ -878,6 +886,68 @@ input {
   padding-bottom: 0;
   overflow: hidden;
 }
+*/
+
+/* Variant 2 — scale + fade (macOS style): shrinks down as it fades.
+[data-del-anim='scale'] .row {
+  transition:
+    opacity 380ms ease,
+    transform 380ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 320ms ease 320ms,
+    margin-top 320ms ease 320ms,
+    margin-bottom 320ms ease 320ms,
+    padding-top 320ms ease 320ms,
+    padding-bottom 320ms ease 320ms;
+}
+[data-del-anim='scale'] .row--removing {
+  opacity: 0;
+  transform: scale(0.9);
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+*/
+
+/* Variant 3 — slide out (sidebar style): slides left + fades, then collapses
+ * with an overlapping ease-in so the two phases blend into one motion. */
+[data-del-anim='slide'] .row {
+  transition:
+    opacity 420ms ease,
+    transform 420ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 140ms ease-in 300ms,
+    margin-top 140ms ease-in 300ms,
+    margin-bottom 140ms ease-in 300ms,
+    padding-top 140ms ease-in 300ms,
+    padding-bottom 140ms ease-in 300ms;
+}
+[data-del-anim='slide'] .row--removing {
+  opacity: 0;
+  transform: translateX(-44px);
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* TEMP toggle button — small label, no icon.
+.tbtn--temp {
+  width: auto;
+  min-width: 38px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-fg);
+  opacity: 0.85;
+}
+.tbtn--temp:hover {
+  opacity: 1;
+}
+*/
 
 .row:hover {
   background: var(--hover);

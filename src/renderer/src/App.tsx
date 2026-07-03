@@ -23,7 +23,7 @@ import { MacIcon } from './components/MacIcons'
 import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
-import { accentForeground, buildRows, type GroupMode, metaKey } from './util'
+import { accentForeground, buildRows, loadGroupMode, saveGroupMode, type GroupMode, metaKey } from './util'
 
 type RowMenuAction =
   | 'copy-resume'
@@ -187,7 +187,7 @@ export function App(): JSX.Element {
   const [project, setProject] = useState('')
   const [sidebarW, setSidebarW] = useState(380)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [groupMode, setGroupMode] = useState<GroupMode>('chronological')
+  const [groupMode, setGroupMode] = useState<GroupMode>(loadGroupMode)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
@@ -235,6 +235,11 @@ export function App(): JSX.Element {
   useEffect(() => {
     void refresh(false)
   }, [])
+
+  // Persist the group-by choice so the same grouping survives relaunch.
+  useEffect(() => {
+    saveGroupMode(groupMode)
+  }, [groupMode])
 
   useEffect(() => {
     let disposed = false
@@ -626,7 +631,7 @@ export function App(): JSX.Element {
             for (const k of doomed) next.delete(k)
             return next
           })
-        }, 230)
+        }, 460)
         break
       }
     }
@@ -681,6 +686,7 @@ export function App(): JSX.Element {
     <div
       className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}
       data-density="cozy"
+      data-del-anim="slide"
       style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}
     >
       <div className="toolbar">

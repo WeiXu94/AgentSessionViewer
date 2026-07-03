@@ -106,6 +106,29 @@ export function metaKey(s: SessionMeta): string {
 export type ListMode = 'flat' | 'tree'
 export type GroupMode = 'chronological' | 'date' | 'project-recent' | 'project-alpha'
 
+export const GROUP_MODES: GroupMode[] = ['chronological', 'date', 'project-recent', 'project-alpha']
+
+const GROUP_MODE_KEY = 'asv.groupMode'
+
+/** Read the saved group-by mode, falling back to 'chronological'. */
+export function loadGroupMode(): GroupMode {
+  try {
+    const v = localStorage.getItem(GROUP_MODE_KEY)
+    return GROUP_MODES.includes(v as GroupMode) ? (v as GroupMode) : 'chronological'
+  } catch {
+    return 'chronological'
+  }
+}
+
+/** Persist the group-by mode for the next launch. */
+export function saveGroupMode(mode: GroupMode): void {
+  try {
+    localStorage.setItem(GROUP_MODE_KEY, mode)
+  } catch {
+    /* storage may be unavailable (private mode) — ignore. */
+  }
+}
+
 export interface SessionDisplayRow {
   kind: 'session'
   session: SessionMeta
