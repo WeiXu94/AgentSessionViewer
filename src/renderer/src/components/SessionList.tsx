@@ -8,6 +8,7 @@ import { SessionRow } from './SessionRow'
 interface Props {
   rows: DisplayRow[]
   selectedKey: string | null
+  removingKeys: Set<string>
   onSelect: (s: SessionMeta) => void
   onContextMenu: (s: SessionMeta, point: { x: number; y: number }) => void
   onToggle: (id: string) => void
@@ -17,6 +18,7 @@ interface Props {
 export function SessionList({
   rows,
   selectedKey,
+  removingKeys,
   onSelect,
   onContextMenu,
   onToggle,
@@ -77,6 +79,7 @@ export function SessionList({
                 <SessionRow
                   session={row.session}
                   selected={metaKey(row.session) === selectedKey}
+                  removing={removingKeys.has(metaKey(row.session))}
                   depth={row.depth}
                   hasChildren={row.hasChildren}
                   expanded={row.expanded}

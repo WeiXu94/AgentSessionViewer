@@ -6,6 +6,7 @@ import { MacIcon, Tri } from './MacIcons'
 interface Props {
   session: SessionMeta
   selected: boolean
+  removing: boolean
   depth: number
   hasChildren: boolean
   expanded: boolean
@@ -17,6 +18,7 @@ interface Props {
 export const SessionRow = memo(function SessionRow({
   session,
   selected,
+  removing,
   depth,
   hasChildren,
   expanded,
@@ -27,7 +29,7 @@ export const SessionRow = memo(function SessionRow({
   const isSub = session.variant === 'subagent'
   return (
     <div
-      className={`row${selected ? ' row--selected' : ''}${isSub ? ' row--sub' : ''}`}
+      className={`row${selected ? ' row--selected' : ''}${isSub ? ' row--sub' : ''}${removing ? ' row--removing' : ''}`}
       style={{ paddingLeft: 4 + depth * 16 }}
       onClick={onClick}
       onContextMenu={(e) => {

@@ -54,6 +54,29 @@ const LOCAL_MATCHES_SHOWN = 50
 // Matches shown per session before the "+N more" expander.
 const COLLAPSED_MATCHES = 5
 
+/**
+ * Keys of the session itself plus its subagent descendants (same source,
+ * parentId chain). All get swept out together when a parent is deleted.
+ */
+function collectRemovableKeys(sessions: SessionMeta[], root: SessionMeta): Set<string> {
+  const doomed = new Set<string>([metaKey(root)])
+  // Iterate to fixed point: a child's parentId matches any already-doomed key.
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const s of sessions) {
+      if (s.source !== root.source || !s.parentId) continue
+      if (doomed.has(metaKey(s))) continue
+      const parentKey = `${s.source}\u0000${s.parentId}`
+      if (doomed.has(parentKey)) {
+        doomed.add(metaKey(s))
+        grew = true
+      }
+    }
+  }
+  return doomed
+}
+
 function countPartMatches(
   text: string,
   query: string,
@@ -168,6 +191,9 @@ export function App(): JSX.Element {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
+  // Session keys being animated out after a delete; removed from `sessions`
+  // once the CSS sweep finishes so the virtualizer recomputes positions.
+  const [removingKeys, setRemovingKeys] = useState<Set<string>>(new Set())
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -583,9 +609,24 @@ export function App(): JSX.Element {
           await window.api.confirm(`Failed to delete session: ${res.error ?? 'unknown error'}`)
           break
         }
-        // Clear selection if the deleted session was active, then rescan.
+        // Sweep the row out via CSS, then drop it from local state. No full
+        // rescan — the deleted session is gone from storage, so it won't
+        // reappear on the next manual reload.
         if (selected && metaKey(selected) === metaKey(s)) setSelected(null)
-        await refresh(true)
+        const doomed = collectRemovableKeys(sessions, s)
+        setRemovingKeys((prev) => {
+          const next = new Set(prev)
+          for (const k of doomed) next.add(k)
+          return next
+        })
+        window.setTimeout(() => {
+          setSessions((prev) => prev.filter((x) => !doomed.has(metaKey(x))))
+          setRemovingKeys((prev) => {
+            const next = new Set(prev)
+            for (const k of doomed) next.delete(k)
+            return next
+          })
+        }, 230)
         break
       }
     }
@@ -612,6 +653,17 @@ export function App(): JSX.Element {
       <MacIcon name="search" />
     </button>
   )
+  const refreshBtn = (
+    <button
+      className={`tbtn${refreshing ? ' tbtn--spin' : ''}`}
+      type="button"
+      onClick={() => void refresh(true)}
+      title="Reload sessions"
+      aria-label="Reload sessions"
+    >
+      <MacIcon name="reload" />
+    </button>
+  )
   const collapseBtn = (
     <button
       className="tbtn toolbar__toggle"
@@ -634,6 +686,7 @@ export function App(): JSX.Element {
       <div className="toolbar">
         <div className="toolbar__lead">
           {searchBtn}
+          {refreshBtn}
           {collapseBtn}
         </div>
         <div className="toolbar__sep" />
@@ -653,14 +706,6 @@ export function App(): JSX.Element {
               <span className="seg__num">{transcript ? transcript.records.length : 0}</span>
             </button>
           </div>
-          <button
-            className={`tbtn${refreshing ? ' tbtn--spin' : ''}`}
-            onClick={() => void refresh(true)}
-            title="Reload sessions"
-            aria-label="Reload sessions"
-          >
-            <MacIcon name="reload" />
-          </button>
         </div>
       </div>
 
@@ -682,6 +727,7 @@ export function App(): JSX.Element {
               <SessionList
                 rows={rows}
                 selectedKey={selected ? metaKey(selected) : null}
+                removingKeys={removingKeys}
                 onSelect={setSelected}
                 onContextMenu={onContextMenu}
                 onToggle={toggleExpand}
