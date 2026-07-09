@@ -5,6 +5,7 @@ import { claudeNodes, claudeTranscriptNodes } from './mappers/claude.js'
 import { codexNodes } from './mappers/codex.js'
 import { genericNodes, reconstructPayload } from './mappers/generic.js'
 import { loadOpenCodePayload } from './mappers/opencode.js'
+import { grokNodes } from './mappers/grok.js'
 import { piNodes } from './mappers/pi.js'
 import { scanJsonlLines } from './sessions/utils/jsonl.js'
 import { getOrLoadTranscript, transcriptCacheKey } from './transcriptCache.js'
@@ -48,6 +49,7 @@ function nodesFor(source: string, records: unknown[], id = ''): ViewNode[] {
   if (source === 'claude') return claudeNodes(records)
   if (source === 'codex') return codexNodes(records)
   if (source === 'pi') return piNodes(records)
+  if (source === 'grok') return grokNodes(records)
   return genericNodes(records)
 }
 

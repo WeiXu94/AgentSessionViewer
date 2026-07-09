@@ -29,6 +29,7 @@ import { extractGeminiContext, parseGeminiSessions } from './gemini.js';
 import { extractKimiContext, parseKimiSessions } from './kimi.js';
 import { extractKiroContext, parseKiroSessions } from './kiro.js';
 import { extractOpenCodeContext, parseOpenCodeSessions } from './opencode.js';
+import { extractGrokContext, parseGrokSessions } from './grok.js';
 import { extractPiContext, parsePiSessions } from './pi.js';
 import { extractQwenCodeContext, parseQwenCodeSessions } from './qwen-code.js';
 
@@ -955,6 +956,23 @@ register({
   nativeResumeArgs: (s) => ['--resume', s.id],
   crossToolArgs: (prompt) => [prompt],
   resumeCommandDisplay: (s) => `pi --resume ${s.id}`,
+});
+
+
+// ── Grok Build ───────────────────────────────────────────────────────
+register({
+  name: 'grok',
+  label: 'Grok Build',
+  color: chalk.hex('#00d4ff'),
+  storagePath: '~/.grok/sessions/',
+  envVar: 'GROK_HOME',
+  binaryName: 'grok',
+  parseSessions: parseGrokSessions,
+  supportsCwdLookup: true,
+  extractContext: extractGrokContext,
+  nativeResumeArgs: (s) => ['--resume', s.id],
+  crossToolArgs: (prompt) => [prompt],
+  resumeCommandDisplay: (s) => `grok --resume ${s.id}`,
 });
 
 // ── Completeness assertion ──────────────────────────────────────────

@@ -17,7 +17,8 @@ export const SOURCE_COLORS: Record<string, string> = {
   antigravity: '#a8dadc',
   kimi: '#16a34a',
   'qwen-code': '#6366f1',
-  pi: '#ff4d8d'
+  pi: '#ff4d8d',
+  grok: '#00d4ff'
 }
 
 export function sourceColor(source: string): string {
@@ -51,7 +52,8 @@ const SOURCE_NAMES: Record<string, string> = {
   antigravity: 'Antigravity',
   kimi: 'Kimi',
   'qwen-code': 'Qwen',
-  pi: 'Pi'
+  pi: 'Pi',
+  grok: 'Grok'
 }
 
 /** Clean base name for the badge — variant (cli/desk) is shown as a separate chip. */

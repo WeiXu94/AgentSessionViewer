@@ -22,6 +22,7 @@ export const TOOL_NAMES = Object.freeze([
   'kimi',
   'qwen-code',
   'pi',
+  'grok',
 ] as const);
 
 /** Source CLI tool — derived from TOOL_NAMES, never defined manually */
@@ -67,6 +68,7 @@ export const EDIT_TOOLS: ReadonlySet<string> = new Set([
   'EditFile',
   'edit_file',
   'edit',
+  'search_replace',
   'apply_diff',
   'apply_patch',
   'ApplyPatch',
@@ -89,6 +91,7 @@ export const GREP_TOOLS: ReadonlySet<string> = new Set([
 export const GLOB_TOOLS: ReadonlySet<string> = new Set([
   'Glob',
   'glob',
+  'list_dir',
   'list_directory',
   'ListFiles',
   'file_search',
@@ -101,10 +104,10 @@ export const GLOB_TOOLS: ReadonlySet<string> = new Set([
 export const SEARCH_TOOLS: ReadonlySet<string> = new Set(['WebSearch', 'web_search', 'web_search_call']);
 
 /** Web fetch tools */
-export const FETCH_TOOLS: ReadonlySet<string> = new Set(['WebFetch', 'web_fetch']);
+export const FETCH_TOOLS: ReadonlySet<string> = new Set(['WebFetch', 'web_fetch', 'open_page', 'open_page_with_find']);
 
 /** Subagent/task tools */
-export const TASK_TOOLS: ReadonlySet<string> = new Set(['Task', 'task', 'Agent']);
+export const TASK_TOOLS: ReadonlySet<string> = new Set(['Task', 'task', 'Agent', 'spawn_subagent']);
 
 /** Task output tools */
 export const TASK_OUTPUT_TOOLS: ReadonlySet<string> = new Set(['TaskOutput']);
