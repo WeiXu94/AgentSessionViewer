@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useRef, type MouseEvent } from 'react'
+import { useEffect, useRef, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
 import { type DisplayRow, metaKey } from '../util'
 import { Tri } from './MacIcons'
@@ -31,6 +31,21 @@ export function SessionList({
     estimateSize: (index) => (rows[index]?.kind === 'group' ? 34 : 54),
     overscan: 12
   })
+
+  // Keep a stable ref to the virtualizer so the scroll effect doesn't list `virt` as a dep.
+  const virtRef = useRef(virt)
+  virtRef.current = virt
+
+  // Scroll to the selected session whenever selection changes (e.g. from search jump).
+  useEffect(() => {
+    if (!selectedKey) return
+    const index = rows.findIndex(
+      (r) => r.kind === 'session' && metaKey(r.session) === selectedKey
+    )
+    if (index >= 0) {
+      virtRef.current.scrollToIndex(index, { align: 'center' })
+    }
+  }, [selectedKey, rows])
 
   if (rows.length === 0) {
     return <div className="list list--empty">No sessions match.</div>
