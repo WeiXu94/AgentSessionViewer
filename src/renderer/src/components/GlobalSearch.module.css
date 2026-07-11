@@ -1,0 +1,409 @@
+/* Auto-split from styles.css — GlobalSearch.module.css */
+/* ── Search scope + global search overlay ───────────────────────────── */
+.findWrap {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.find__scope {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 100%;
+  padding: 0 6px 0 9px;
+  border: none;
+  border-right: 0.5px solid var(--field-line);
+  background: rgb(0 0 0 / 0.03);
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  .find__scope {
+    background: rgb(255 255 255 / 0.04);
+  }
+}
+
+.find__scope:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.find__scope svg {
+  width: 9px;
+  height: 9px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find__scopeMenu {
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 230px;
+}
+
+/* ── Unified search modal (ChatGPT-style) ───────────────────────────── */
+.searchModal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* Vertical position knob: `padding-top` sets how far down the modal sits.
+     Smaller = higher, larger = lower. (Top stays fixed as results load.) */
+  padding: 24vh 24px 24px;
+  background: rgb(0 0 0 / 0.28);
+  -webkit-app-region: no-drag;
+  animation: fade 0.12s ease-out;
+}
+
+.searchModal {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 48px));
+  max-height: min(70vh, 620px);
+  overflow: hidden;
+  border-radius: var(--r-pop);
+  background: var(--pop);
+  box-shadow: var(--pop-shadow);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  animation: pop 0.13s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.searchModal__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border-bottom: 0.5px solid var(--sep);
+}
+
+.searchModal__icon {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--label-3);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchModal__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--label);
+  font-size: 16px;
+  outline: none;
+}
+
+.searchModal__input::placeholder {
+  color: var(--label-3);
+}
+
+.searchModal__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.searchModal__close:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.searchModal__close svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.searchModal__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--sep);
+}
+
+.searchModal__scopes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: rgb(0 0 0 / 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .searchModal__scopes {
+    background: rgb(255 255 255 / 0.06);
+  }
+}
+
+.searchModal__scope {
+  padding: 4px 11px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.searchModal__scope:hover:not(:disabled):not(.searchModal__scope--on) {
+  color: var(--label);
+}
+
+.searchModal__scope--on {
+  background: var(--pop);
+  color: var(--label);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+
+.searchModal__scope:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* VSCode-style toggles inside the search box (Match Case "Aa", Whole Word "ab"). */
+.searchModal__toggles {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.searchModal__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-3);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.searchModal__toggle:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.searchModal__toggle--on {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--accent-soft);
+  color: var(--label);
+}
+
+.searchModal__toggleWw {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.searchModal .globalSearch__list {
+  flex: 1;
+  min-height: 0;
+}
+
+.globalSearch__list {
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.globalSearch__empty {
+  padding: 22px 16px;
+  color: var(--label-2);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.globalSearch__session {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  margin: 6px -6px 2px;
+  padding: 7px 14px 5px;
+  background: var(--pop);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+}
+
+.globalSearch__list > .globalSearch__session:first-child {
+  margin-top: -6px;
+}
+
+.globalSearch__badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.globalSearch__title {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globalSearch__repo {
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--label-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.globalSearch__time {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.globalSearch__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.globalSearch__row--active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.globalSearch__kind {
+  flex-shrink: 0;
+  width: 30px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--label-3);
+}
+
+.globalSearch__kind--user,
+.globalSearch__kind--title {
+  color: var(--accent);
+}
+
+.globalSearch__row--active .globalSearch__kind,
+.globalSearch__row--active .globalSearch__kind--user {
+  color: var(--accent-fg);
+  opacity: 0.85;
+}
+
+.globalSearch__snippet {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.globalSearch__snippet mark {
+  background: var(--mark);
+  color: var(--mark-fg);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.globalSearch__row--active .globalSearch__snippet mark {
+  background: rgb(255 255 255 / 0.92);
+  color: var(--accent);
+}
+
+.globalSearch__more {
+  padding: 1px 8px 5px 42px;
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+button.globalSearch__more--btn {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--accent);
+}
+
+button.globalSearch__more--btn:hover {
+  text-decoration: underline;
+}
+
+.globalSearch__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-top: 0.5px solid var(--sep);
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+.globalSearch__indexing {
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}
+

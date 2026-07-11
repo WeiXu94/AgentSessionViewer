@@ -1,0 +1,187 @@
+/* Design system tokens + global base. Not CSS Modules. */
+:root {
+  --accent: #5b7a5a;
+  --accent-fg: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-tint: color-mix(in srgb, var(--accent) 18%, transparent);
+  --role: #5b7a5a;
+  --sys: "Segoe UI", Calibri, "Helvetica Neue", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --serif: "Source Serif 4 Variable", "Source Serif 4", "New York", Charter, Georgia, serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Monaco, "Cascadia Mono", monospace;
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-pop: 12px;
+  --r-pill: 999px;
+  --glass: blur(34px) saturate(1.8);
+  --mark: #ffd60a;
+  --mark-fg: #1d1d1f;
+  --row-h: 40px;
+  --toolbar: #f5f4f1;
+  --sidebar: #f5f4f1;
+  --content: #f5f4f1;
+  --content-2: #ebeae6;
+  --user-bg: #ebeae6;
+  --label: #1c1c1a;
+  --label-2: rgb(60 58 52 / 0.62);
+  --label-3: rgb(60 58 52 / 0.40);
+  --sep: rgb(0 0 0 / 0.12);
+  --sep-2: rgb(0 0 0 / 0.08);
+  --hover: rgb(0 0 0 / 0.035);
+  --selected: rgb(0 0 0 / 0.05);
+  --field: rgb(0 0 0 / 0.04);
+  --field-line: rgb(0 0 0 / 0.08);
+  --pop: #fbfaf8;
+  --pop-border: rgb(0 0 0 / 0.08);
+  --pop-shadow: 0 0 0 1px var(--pop-border), 0 8px 28px -6px rgb(30 28 24 / 0.18), 0 2px 8px -2px rgb(30 28 24 / 0.08);
+  --menu-hover: rgb(0 0 0 / 0.045);
+  --menu-active: rgb(0 0 0 / 0.07);
+  --seg-track: rgb(0 0 0 / 0.05);
+  --seg-thumb: #ffffff;
+  --seg-thumb-shadow: 0 0.5px 0 rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 0.5px rgb(0 0 0 / 0.04);
+  --push: #ffffff;
+  --push-line: rgb(0 0 0 / 0.10);
+  --push-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08);
+  --warn: #b25e00;
+  --warn-bg: #fff4e0;
+  --error: #c92a1c;
+  --thinking: var(--label-2);
+  --tool: #5b7a5a;
+  --avatar-ring: inset 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #8fad8d;
+    --accent-fg: #1c1c1a;
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+    --accent-tint: color-mix(in srgb, var(--accent) 22%, transparent);
+    --role: #9fbf9c;
+    --toolbar: #18181a;
+    --sidebar: #18181a;
+    --content: #18181a;
+    --content-2: #222224;
+    --user-bg: #222224;
+    --label: #f2f1ee;
+    --label-2: rgb(235 233 228 / 0.58);
+    --label-3: rgb(235 233 228 / 0.36);
+    --sep: rgb(255 255 255 / 0.14);
+    --sep-2: rgb(255 255 255 / 0.10);
+    --hover: rgb(255 255 255 / 0.05);
+    --selected: rgb(255 255 255 / 0.08);
+    --field: rgb(255 255 255 / 0.06);
+    --field-line: rgb(255 255 255 / 0.09);
+    --pop: #2a2a2c;
+    --pop-border: rgb(255 255 255 / 0.10);
+    --pop-shadow: 0 0 0 1px var(--pop-border), 0 10px 32px -6px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
+    --menu-hover: rgb(255 255 255 / 0.06);
+    --menu-active: rgb(255 255 255 / 0.09);
+    --seg-track: rgb(0 0 0 / 0.26);
+    --seg-thumb: #4a4a4c;
+    --seg-thumb-shadow: 0 0.5px 0 rgb(255 255 255 / 0.10), 0 1px 3px rgb(0 0 0 / 0.4);
+    --push: #2c2c2e;
+    --push-line: rgb(255 255 255 / 0.10);
+    --push-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.35);
+    --warn: #f0b34a;
+    --warn-bg: rgb(240 179 74 / 0.14);
+    --error: #ff6b5e;
+    --thinking: var(--label-2);
+    --tool: #8fad8d;
+    --avatar-ring: inset 0 0 0 0.5px rgb(0 0 0 / 0.4);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--sys);
+  font-size: 13px;
+  font-optical-sizing: auto;
+  line-height: 1.5;
+  color: var(--label);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent-tint);
+}
+
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* macOS overlay-ish scrollbars */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border: 4px solid transparent;
+  border-radius: 8px;
+  background: var(--label-3);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  border: 4px solid transparent;
+  background: var(--label-2);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
+/* ── Jump highlight (global search → transcript) ────────────────────── */
+/* Range-based highlight of the matched text on the landed node — paints over the
+   rendered markdown without replacing it with raw text. The text highlight alone
+   marks the spot (no surrounding row box). */
+::highlight(jump-search) {
+  background-color: var(--mark);
+  color: var(--mark-fg);
+}
+

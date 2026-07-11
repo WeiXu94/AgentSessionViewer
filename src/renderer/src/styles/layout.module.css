@@ -1,0 +1,314 @@
+/* Auto-split from styles.css — layout.module.css */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Titlebar drag strip — split colors, no chrome line */
+.toolbar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: stretch;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  position: relative;
+  z-index: 5;
+}
+
+.toolbar button,
+.toolbar input,
+.toolbar .segmented,
+.toolbar .find {
+  -webkit-app-region: no-drag;
+}
+
+.toolbar__lead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: var(--sidebar-w, 300px);
+  flex-shrink: 0;
+  padding-left: 78px;
+  padding-right: 10px;
+  background: var(--sidebar);
+  border-right: 0.5px solid var(--sep);
+}
+
+.app--sidebar-collapsed .toolbar__lead {
+  width: auto;
+  border-right: none;
+  background: var(--content);
+}
+
+.toolbar__sep {
+  display: none;
+}
+
+.toolbar__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+  background: var(--content);
+}
+
+.toolbar__spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.count-pill {
+  display: none;
+}
+
+.tbtn,
+.iconbtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tbtn:hover,
+.iconbtn:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.tbtn svg,
+.iconbtn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tbtn--spin svg {
+  animation: spin 0.7s linear infinite;
+}
+
+.find {
+  display: flex;
+  align-items: center;
+  width: clamp(180px, 24vw, 280px);
+  height: 24px;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--field);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  transition: box-shadow 0.14s, background 0.14s, opacity 0.14s;
+}
+
+.find:focus-within {
+  background: var(--content);
+  box-shadow: 0 0 0 3.5px var(--accent-soft), inset 0 0 0 1px var(--accent);
+}
+
+.find--disabled {
+  opacity: 0.58;
+}
+
+.find svg.find-i {
+  width: 13px;
+  height: 13px;
+  margin: 0 4px 0 8px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--label-3);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.find input {
+  flex: 1;
+  min-width: 30px;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--label);
+  font-size: 12.5px;
+}
+
+.find input::placeholder {
+  color: var(--label-3);
+}
+
+.find__count {
+  padding: 0 6px;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.find__step {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 100%;
+  border: none;
+  border-left: 0.5px solid var(--field-line);
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.find__step:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.find__step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.find__step svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.segmented {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--seg-track);
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.04);
+}
+
+.seg {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 11px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.seg + .seg::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 0.5px;
+  background: var(--sep);
+}
+
+.seg--on {
+  background: var(--seg-thumb);
+  box-shadow: var(--seg-thumb-shadow);
+  font-weight: 590;
+}
+
+.seg--on::before,
+.seg--on + .seg::before {
+  opacity: 0;
+}
+
+.seg--icon {
+  width: 28px;
+  padding: 0;
+}
+
+.seg--icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.seg__num {
+  color: var(--label-2);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg--on .seg__num {
+  color: var(--accent);
+}
+
+/* Layout */
+.body,
+.mac-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar,
+.mac-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w, 300px);
+  min-width: 240px;
+  max-width: 520px;
+  flex-shrink: 0;
+  background: var(--sidebar);
+  border-right: none;
+}
+
+.divider,
+.mac-divider {
+  width: 0.5px;
+  background: var(--sep);
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.divider::after,
+.mac-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.main,
+.mac-detail {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--content);
+}
+

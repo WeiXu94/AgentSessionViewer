@@ -19,8 +19,10 @@
     "release": "electron-vite build && electron-builder --publish always"
   },
   "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.2.9",
     "@tanstack/react-virtual": "^3.10.9",
     "chalk": "^4.1.2",
+    "katex": "^0.17.0",
     "marked": "^18.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -28,6 +30,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "@types/marked": "^5.0.2",
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",

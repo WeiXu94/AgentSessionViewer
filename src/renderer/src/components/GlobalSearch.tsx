@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { GlobalSearchGroup, GlobalSearchMatch, GlobalSearchResponse, SearchIndexProgress } from '../../../shared/ipc'
 import { fmtTime, metaKey, sessionTitle, sourceColor, sourceName } from '../util'
+import { m } from '../styles/cx'
 import { MacIcon } from './MacIcons'
+import styles from './GlobalSearch.module.css'
 
 export type SearchScope = 'all' | 'project' | 'session'
 
@@ -108,19 +110,19 @@ export function GlobalSearch({
 
   let body: ReactNode
   if (response && !response.available) {
-    body = <div className="globalSearch__empty">Full-text index unavailable (node:sqlite missing).</div>
+    body = <div className={styles['globalSearch__empty']}>Full-text index unavailable (node:sqlite missing).</div>
   } else if (scope === 'session' && !hasSession) {
-    body = <div className="globalSearch__empty">Open a session to search inside it.</div>
+    body = <div className={styles['globalSearch__empty']}>Open a session to search inside it.</div>
   } else if (!trimmed) {
-    body = <div className="globalSearch__empty">Search across {scopeLabel}.</div>
+    body = <div className={styles['globalSearch__empty']}>Search across {scopeLabel}.</div>
   } else if (tooShort) {
-    body = <div className="globalSearch__empty">Type at least 2 characters to search {scopeLabel}.</div>
+    body = <div className={styles['globalSearch__empty']}>Type at least 2 characters to search {scopeLabel}.</div>
   } else if (groups.length === 0) {
-    body = <div className="globalSearch__empty">{loading ? 'Searching…' : `No matches in ${scopeLabel}.`}</div>
+    body = <div className={styles['globalSearch__empty']}>{loading ? 'Searching…' : `No matches in ${scopeLabel}.`}</div>
   } else {
     let rowIndex = -1
     body = (
-      <div className="globalSearch__list" ref={listRef}>
+      <div className={styles['globalSearch__list']} ref={listRef}>
         {groups.map((group) => {
           const key = metaKey(group.session)
           const isExpanded = expanded.has(key)
@@ -130,16 +132,16 @@ export function GlobalSearch({
           const beyondShown = group.totalMatches - shown.length
           return (
             <Fragment key={`${group.session.source}:${group.session.id}:${group.session.originalPath}`}>
-              <div className="globalSearch__session">
-                <span className="globalSearch__badge" style={{ color: sourceColor(group.session.source) }}>
+              <div className={styles['globalSearch__session']}>
+                <span className={styles['globalSearch__badge']} style={{ color: sourceColor(group.session.source) }}>
                   {sourceName(group.session.source)}
                 </span>
-                <span className="globalSearch__title" title={sessionTitle(group.session)}>
+                <span className={styles['globalSearch__title']} title={sessionTitle(group.session)}>
                   {sessionTitle(group.session)}
                 </span>
-                {group.session.variantLabel ? <span className="vchip">{group.session.variantLabel}</span> : null}
-                {group.session.repo ? <span className="globalSearch__repo">{group.session.repo}</span> : null}
-                <span className="globalSearch__time">{fmtTime(group.session.updatedAt)}</span>
+                {group.session.variantLabel ? <span className={styles.vchip}>{group.session.variantLabel}</span> : null}
+                {group.session.repo ? <span className={styles['globalSearch__repo']}>{group.session.repo}</span> : null}
+                <span className={styles['globalSearch__time']}>{fmtTime(group.session.updatedAt)}</span>
               </div>
               {shown.map((match, i) => {
                 rowIndex++
@@ -148,22 +150,22 @@ export function GlobalSearch({
                   <button
                     key={`${match.kind}:${match.nodeIndex}:${i}`}
                     type="button"
-                    className={`globalSearch__row${index === activeIndex ? ' globalSearch__row--active' : ''}`}
+                    className={m(styles, 'globalSearch__row', index === activeIndex && 'globalSearch__row--active')}
                     data-active={index === activeIndex || undefined}
                     onMouseMove={() => onHover(index)}
                     onClick={() => onOpen({ group, match })}
                   >
-                    <span className={`globalSearch__kind globalSearch__kind--${match.kind}`}>{matchLabel(match.kind)}</span>
-                    <span className="globalSearch__snippet">{renderSnippet(match.snippet)}</span>
+                    <span className={m(styles, 'globalSearch__kind', `globalSearch__kind--${match.kind}`)}>{matchLabel(match.kind)}</span>
+                    <span className={styles['globalSearch__snippet']}>{renderSnippet(match.snippet)}</span>
                   </button>
                 )
               })}
               {isExpanded ? (
-                <button type="button" className="globalSearch__more globalSearch__more--btn" onClick={() => onToggleExpand(key)}>
+                <button type="button" className={m(styles, 'globalSearch__more', 'globalSearch__more--btn')} onClick={() => onToggleExpand(key)}>
                   Show fewer{hiddenReturned < beyondShown ? ` · showing ${shown.length} of ${group.totalMatches}` : ''}
                 </button>
               ) : hiddenReturned > 0 ? (
-                <button type="button" className="globalSearch__more globalSearch__more--btn" onClick={() => onToggleExpand(key)}>
+                <button type="button" className={m(styles, 'globalSearch__more', 'globalSearch__more--btn')} onClick={() => onToggleExpand(key)}>
                   +{beyondShown} more in this session
                 </button>
               ) : null}
@@ -175,19 +177,19 @@ export function GlobalSearch({
   }
 
   return (
-    <div className="searchModal__backdrop" onMouseDown={onClose}>
+    <div className={styles['searchModal__backdrop']} onMouseDown={onClose}>
       <div
-        className="searchModal"
+        className={styles.searchModal}
         role="dialog"
         aria-modal="true"
         aria-label="Search sessions"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="searchModal__head">
-          <MacIcon name="search" className="searchModal__icon" />
+        <div className={styles['searchModal__head']}>
+          <MacIcon name="search" className={styles['searchModal__icon']} />
           <input
             ref={inputRef}
-            className="searchModal__input"
+            className={styles['searchModal__input']}
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             onKeyDown={onKeyDown}
@@ -197,10 +199,10 @@ export function GlobalSearch({
             spellCheck={false}
             autoFocus
           />
-          <div className="searchModal__toggles">
+          <div className={styles['searchModal__toggles']}>
             <button
               type="button"
-              className={`searchModal__toggle${matchCase ? ' searchModal__toggle--on' : ''}`}
+              className={m(styles, 'searchModal__toggle', matchCase && 'searchModal__toggle--on')}
               aria-pressed={matchCase}
               title="Match case"
               aria-label="Match case"
@@ -210,22 +212,22 @@ export function GlobalSearch({
             </button>
             <button
               type="button"
-              className={`searchModal__toggle${wholeWord ? ' searchModal__toggle--on' : ''}`}
+              className={m(styles, 'searchModal__toggle', wholeWord && 'searchModal__toggle--on')}
               aria-pressed={wholeWord}
               title="Match whole word"
               aria-label="Match whole word"
               onClick={() => onWholeWord(!wholeWord)}
             >
-              <span className="searchModal__toggleWw">ab</span>
+              <span className={styles['searchModal__toggleWw']}>ab</span>
             </button>
           </div>
-          <button className="searchModal__close" type="button" onClick={onClose} title="Close" aria-label="Close search">
+          <button className={styles['searchModal__close']} type="button" onClick={onClose} title="Close" aria-label="Close search">
             <MacIcon name="close" />
           </button>
         </div>
 
-        <div className="searchModal__controls">
-          <div className="searchModal__scopes" role="tablist" aria-label="Search scope">
+        <div className={styles['searchModal__controls']}>
+          <div className={styles['searchModal__scopes']} role="tablist" aria-label="Search scope">
             {SCOPES.map((s) => (
               <button
                 key={s.value}
@@ -233,7 +235,7 @@ export function GlobalSearch({
                 role="tab"
                 aria-selected={scope === s.value}
                 disabled={s.disabled}
-                className={`searchModal__scope${scope === s.value ? ' searchModal__scope--on' : ''}`}
+                className={m(styles, 'searchModal__scope', scope === s.value && 'searchModal__scope--on')}
                 onClick={() => onScope(s.value)}
               >
                 {s.label}
@@ -244,14 +246,14 @@ export function GlobalSearch({
 
         {body}
 
-        <div className="globalSearch__foot">
+        <div className={styles['globalSearch__foot']}>
           <span>{groups.length > 0 ? `${totalMatches} matches in ${groups.length} sessions · ${scopeLabel}` : scopeLabel}</span>
           {indexing ? (
-            <span className="globalSearch__indexing">
+            <span className={styles['globalSearch__indexing']}>
               Indexing {progress.indexed}/{progress.total}…
             </span>
           ) : loading ? (
-            <span className="globalSearch__indexing">Searching…</span>
+            <span className={styles['globalSearch__indexing']}>Searching…</span>
           ) : null}
         </div>
       </div>

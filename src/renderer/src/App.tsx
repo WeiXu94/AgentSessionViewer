@@ -24,6 +24,10 @@ import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
 import { accentForeground, buildRows, loadGroupMode, saveGroupMode, type GroupMode, metaKey } from './util'
+import { m } from './styles/cx'
+import layout from './styles/layout.module.css'
+import menu from './styles/menus.module.css'
+import listStyles from './components/SessionList.module.css'
 
 type RowMenuAction =
   | 'copy-resume'
@@ -185,7 +189,8 @@ export function App(): JSX.Element {
 
   const [source, setSource] = useState('')
   const [project, setProject] = useState('')
-  const [sidebarW, setSidebarW] = useState(380)
+  const [listQuery, setListQuery] = useState('')
+  const [sidebarW, setSidebarW] = useState(300)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [groupMode, setGroupMode] = useState<GroupMode>(loadGroupMode)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -326,12 +331,18 @@ export function App(): JSX.Element {
   }, [sessions])
 
   const filtered = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
     return sessions.filter((s) => {
       if (source && s.source !== source) return false
       if (project && s.repo !== project) return false
+      if (q) {
+        const title = (s.summary || s.id).toLowerCase()
+        const hay = `${title} ${s.repo ?? ''} ${s.cwd ?? ''} ${s.sourceLabel}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       return true
     })
-  }, [sessions, source, project])
+  }, [sessions, source, project, listQuery])
 
   const rows = useMemo(
     () => buildRows(filtered, sessions, 'tree', expanded, groupMode, collapsedGroups),
@@ -347,9 +358,6 @@ export function App(): JSX.Element {
     setTab('session')
     setRowMenu(null)
   }
-
-  const visibleCount = filtered.filter((s) => s.variant !== 'subagent').length
-  const totalCount = sessions.filter((s) => s.variant !== 'subagent').length
 
   // Inline transcript highlight only reflects the query when scoped to this
   // session — searching "all" shouldn't randomly light up the open transcript.
@@ -496,7 +504,8 @@ export function App(): JSX.Element {
     [selected]
   )
 
-  const openSearch = useCallback((): void => {
+  const openSearch = useCallback((scope?: SearchScope): void => {
+    if (scope) setSearchScope(scope)
     setSearchOpen(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
@@ -509,13 +518,14 @@ export function App(): JSX.Element {
       const key = event.key.toLowerCase()
       if ((event.metaKey || event.ctrlKey) && (key === 'f' || key === 'k')) {
         event.preventDefault()
-        if (event.shiftKey && key === 'f') setSearchScope('all')
-        openSearch()
+        if (event.shiftKey && key === 'f') openSearch('all')
+        else if (key === 'f' && canSearchTranscript) openSearch('session')
+        else openSearch()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [openSearch])
+  }, [openSearch, canSearchTranscript])
 
   function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -641,7 +651,7 @@ export function App(): JSX.Element {
     e.preventDefault()
     const startX = e.clientX
     const startW = sidebarW
-    const move = (ev: MouseEvent): void => setSidebarW(Math.min(680, Math.max(260, startW + ev.clientX - startX)))
+    const move = (ev: MouseEvent): void => setSidebarW(Math.min(520, Math.max(240, startW + ev.clientX - startX)))
     const up = (): void => {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
@@ -650,17 +660,9 @@ export function App(): JSX.Element {
     window.addEventListener('mouseup', up)
   }
 
-  // Search + collapse controls, left-aligned in the toolbar header (search left
-  // of collapse), next to the window controls. They stay put whether or not the
-  // sidebar is collapsed.
-  const searchBtn = (
-    <button className="tbtn" type="button" onClick={openSearch} title="Search sessions (⌘F)" aria-label="Search sessions">
-      <MacIcon name="search" />
-    </button>
-  )
   const refreshBtn = (
     <button
-      className={`tbtn${refreshing ? ' tbtn--spin' : ''}`}
+      className={m(layout, 'tbtn', refreshing && 'tbtn--spin')}
       type="button"
       onClick={() => void refresh(true)}
       title="Reload sessions"
@@ -671,7 +673,7 @@ export function App(): JSX.Element {
   )
   const collapseBtn = (
     <button
-      className="tbtn toolbar__toggle"
+      className={m(layout, 'tbtn', 'toolbar__toggle')}
       type="button"
       onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
       title={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
@@ -684,40 +686,22 @@ export function App(): JSX.Element {
 
   return (
     <div
-      className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}
+      className={m(layout, 'app', sidebarCollapsed && 'app--sidebar-collapsed')}
       data-density="cozy"
       data-del-anim="slide"
       style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}
     >
-      <div className="toolbar">
-        <div className="toolbar__lead">
-          {searchBtn}
-          {refreshBtn}
+      <div className={layout.toolbar}>
+        <div className={layout['toolbar__lead']}>
           {collapseBtn}
+          {refreshBtn}
         </div>
-        <div className="toolbar__sep" />
-        <div className="toolbar__main">
-          <span className="count-pill">
-            <b>{visibleCount}</b>
-            {visibleCount !== totalCount ? ` of ${totalCount}` : ''} sessions
-          </span>
-          <span className="toolbar__spacer" />
-          <div className="segmented" aria-label="Viewer tab">
-            <button className={`seg${tab === 'session' ? ' seg--on' : ''}`} onClick={() => setTab('session')}>
-              Session
-              <span className="seg__num">{transcript ? transcript.nodes.length : 0}</span>
-            </button>
-            <button className={`seg${tab === 'json' ? ' seg--on' : ''}`} onClick={() => setTab('json')}>
-              JSON
-              <span className="seg__num">{transcript ? transcript.records.length : 0}</span>
-            </button>
-          </div>
-        </div>
+        <div className={layout['toolbar__main']} />
       </div>
 
-      <div className="body mac-body">
+      <div className={m(layout, 'body', 'mac-body')}>
         {sidebarCollapsed ? null : (
-          <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
+          <aside className={m(layout, 'sidebar', 'mac-sidebar')} style={{ width: sidebarW }}>
             <FilterBar
               source={source}
               project={project}
@@ -726,14 +710,17 @@ export function App(): JSX.Element {
               onSource={setSource}
               onProject={setProject}
               onGroupMode={setGroupMode}
+              listQuery={listQuery}
+              onListQuery={setListQuery}
             />
             {loadingList ? (
-              <div className="list list--empty">Scanning agent histories...</div>
+              <div className={m(listStyles, 'list', 'list--empty')}>Scanning agent histories...</div>
             ) : (
               <SessionList
                 rows={rows}
                 selectedKey={selected ? metaKey(selected) : null}
                 removingKeys={removingKeys}
+                grouped={groupMode !== 'chronological'}
                 onSelect={setSelected}
                 onContextMenu={onContextMenu}
                 onToggle={toggleExpand}
@@ -743,20 +730,22 @@ export function App(): JSX.Element {
           </aside>
         )}
 
-        {sidebarCollapsed ? null : <div className="divider mac-divider" onMouseDown={startDrag} />}
+        {sidebarCollapsed ? null : <div className={m(layout, 'divider', 'mac-divider')} onMouseDown={startDrag} />}
 
-        <main className="main mac-detail">
+        <main className={m(layout, 'main', 'mac-detail')}>
           <Viewer
             session={selected}
             transcript={transcript}
             loading={loadingTx}
             tab={tab}
+            onTab={setTab}
             parentSession={selectedForkParent}
             onJumpToParent={selectedForkParent ? () => jumpToSession(selectedForkParent) : undefined}
             searchQuery={inlineQuery}
             searchHitsByNode={searchHitsByNode}
             activeMatch={activeMatch}
             scrollTarget={scrollTarget}
+            onOpenSearch={() => openSearch('session')}
             onReveal={() => {
               if (selected) void window.api.reveal(selected.originalPath)
             }}
@@ -795,75 +784,75 @@ export function App(): JSX.Element {
       {rowMenu ? (
         <div
           ref={rowMenuRef}
-          className="dropdownMenu contextMenu menu ctxmenu"
+          className={m(menu, 'dropdownMenu', 'contextMenu', 'menu', 'ctxmenu')}
           role="menu"
           style={{ left: rowMenu.x, top: rowMenu.y }}
           onContextMenu={(event) => event.preventDefault()}
         >
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.resumeCommand}
             onClick={() => void runRowMenuAction('copy-resume')}
           >
-            <span className="menu__txt">Copy Resume Command</span>
+            <span className={menu['menu__txt']}>Copy Resume Command</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-id')}
           >
-            <span className="menu__txt">Copy Session ID</span>
+            <span className={menu['menu__txt']}>Copy Session ID</span>
           </button>
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-path')}
           >
-            <span className="menu__txt">Copy Path</span>
+            <span className={menu['menu__txt']}>Copy Path</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('reveal')}
           >
-            <span className="menu__txt">Reveal Session Log in Finder</span>
+            <span className={menu['menu__txt']}>Reveal Session Log in Finder</span>
           </button>
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.cwd}
             onClick={() => void runRowMenuAction('open-cwd')}
           >
-            <span className="menu__txt">Open Working Directory</span>
+            <span className={menu['menu__txt']}>Open Working Directory</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.repo}
             onClick={() => void runRowMenuAction('filter-project')}
           >
-            <span className="menu__txt">
+            <span className={menu['menu__txt']}>
               {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
             </span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item menu__item--danger"
+            className={m(menu, 'dropdownMenu__item', 'menu__item', 'menu__item--danger')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('delete')}
           >
-            <span className="menu__txt">
+            <span className={menu['menu__txt']}>
               {rowMenu.session.originalPath.toLowerCase().endsWith('.db')
                 ? 'Delete Session'
                 : 'Move to Trash'}

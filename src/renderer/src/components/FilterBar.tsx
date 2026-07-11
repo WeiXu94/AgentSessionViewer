@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { GroupMode } from '../util'
+import { m } from '../styles/cx'
+import menu from '../styles/menus.module.css'
 import { MacIcon } from './MacIcons'
+import styles from './FilterBar.module.css'
 
 interface SourceOption {
   value: string
@@ -23,6 +26,8 @@ interface Props {
   onSource: (v: string) => void
   onProject: (v: string) => void
   onGroupMode: (v: GroupMode) => void
+  listQuery: string
+  onListQuery: (v: string) => void
 }
 
 export function FilterBar({
@@ -32,12 +37,15 @@ export function FilterBar({
   sources,
   onSource,
   onProject,
-  onGroupMode
+  onGroupMode,
+  listQuery,
+  onListQuery
 }: Props): JSX.Element {
-  const [openMenu, setOpenMenu] = useState<'source' | 'group' | null>(null)
+  const [openMenu, setOpenMenu] = useState<'filter' | null>(null)
   const controlsRef = useRef<HTMLDivElement>(null)
   const groupLabel = GROUP_OPTIONS.find((option) => option.value === groupMode)?.label ?? 'Chronological'
   const sourceLabel = source ? sources.find((option) => option.value === source)?.label ?? source : 'All agents'
+  const filterActive = !!(source || project || groupMode !== 'chronological')
 
   useEffect(() => {
     if (!openMenu) return
@@ -57,102 +65,123 @@ export function FilterBar({
   }, [openMenu])
 
   return (
-    <div className="filterbar sb-controls">
-      <div className="filterbar__row sb-filterrow" ref={controlsRef}>
-        <div className="menuWrap menuWrap--source popup">
+    <div className={m(styles, 'filterbar', 'sb-controls')}>
+      <div className={styles['sb-searchrow']} ref={controlsRef}>
+        <div className={styles['sb-search']}>
+          <MacIcon name="search" />
+          <input
+            className={styles.search}
+            type="search"
+            value={listQuery}
+            onChange={(e) => onListQuery(e.target.value)}
+            placeholder="Search sessions"
+            aria-label="Search sessions"
+          />
+        </div>
+        <div className={styles.menuWrap}>
           <button
-            className={`selectButton popup__btn${openMenu === 'source' ? ' selectButton--active' : ''}`}
+            className={m(
+              styles,
+              'filterIconBtn',
+              'icon-btn',
+              (openMenu === 'filter' || filterActive) && 'filterIconBtn--active',
+              (openMenu === 'filter' || filterActive) && 'icon-btn--on'
+            )}
             type="button"
-            aria-label={`Agent: ${sourceLabel}`}
+            title="Filter & group"
+            aria-label="Filter and group sessions"
             aria-haspopup="menu"
-            aria-expanded={openMenu === 'source'}
-            onClick={() => setOpenMenu((open) => (open === 'source' ? null : 'source'))}
+            aria-expanded={openMenu === 'filter'}
+            onClick={() => setOpenMenu((open) => (open === 'filter' ? null : 'filter'))}
           >
-            <span className="selectButton__label lbl">{sourceLabel}</span>
-            <span className="popup__chev">
-              <MacIcon name="popChev" viewBox="0 0 9 12" />
-            </span>
+            <MacIcon name="group" className={styles['filterIconBtn__icon']} />
           </button>
-          {openMenu === 'source' ? (
-            <div className="dropdownMenu dropdownMenu--source menu menu--under" role="menu">
+          {openMenu === 'filter' ? (
+            <div className={m(menu, 'dropdownMenu', 'dropdownMenu--right', 'menu', 'menu--right')} role="menu">
+              <div className={m(menu, 'dropdownMenu__label', 'menu__label')}>Agent</div>
               <button
-                className="dropdownMenu__item menu__item"
+                className={m(menu, 'dropdownMenu__item', 'menu__item')}
                 type="button"
                 role="menuitemradio"
                 aria-checked={!source}
                 onClick={() => {
                   onSource('')
-                  setOpenMenu(null)
                 }}
               >
-                <span className="dropdownMenu__check menu__check">{!source ? <MacIcon name="check" /> : null}</span>
-                <span className="menu__txt">All Agents</span>
+                <span className={m(menu, 'dropdownMenu__check', 'menu__check')}>
+                  {!source ? <MacIcon name="check" /> : null}
+                </span>
+                <span className={menu['menu__txt']}>All Agents</span>
               </button>
               {sources.map((option) => (
                 <button
                   key={option.value}
-                  className="dropdownMenu__item menu__item"
+                  className={m(menu, 'dropdownMenu__item', 'menu__item')}
                   type="button"
                   role="menuitemradio"
                   aria-checked={source === option.value}
                   onClick={() => {
                     onSource(option.value)
-                    setOpenMenu(null)
                   }}
                 >
-                  <span className="dropdownMenu__check menu__check">
+                  <span className={m(menu, 'dropdownMenu__check', 'menu__check')}>
                     {source === option.value ? <MacIcon name="check" /> : null}
                   </span>
-                  <span className="dropdownMenu__itemText menu__txt">{option.label}</span>
-                  <span className="dropdownMenu__count menu__count">{option.count}</span>
+                  <span className={m(menu, 'dropdownMenu__itemText', 'menu__txt')}>{option.label}</span>
+                  <span className={m(menu, 'dropdownMenu__count', 'menu__count')}>{option.count}</span>
                 </button>
               ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="menuWrap">
-          <button
-            className={`filterIconBtn icon-btn${openMenu === 'group' ? ' filterIconBtn--active icon-btn--on' : ''}`}
-            type="button"
-            title={`Group by: ${groupLabel}`}
-            aria-label={`Group by: ${groupLabel}`}
-            aria-haspopup="menu"
-            aria-expanded={openMenu === 'group'}
-            onClick={() => setOpenMenu((open) => (open === 'group' ? null : 'group'))}
-          >
-            <MacIcon name="group" className="filterIconBtn__icon" />
-          </button>
-          {openMenu === 'group' ? (
-            <div className="dropdownMenu dropdownMenu--right menu menu--right" role="menu">
-              <div className="dropdownMenu__label menu__label">Group By</div>
+              <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
+              <div className={m(menu, 'dropdownMenu__label', 'menu__label')}>Group By</div>
               {GROUP_OPTIONS.map((option) => (
                 <button
                   key={option.value}
-                  className="dropdownMenu__item menu__item"
+                  className={m(menu, 'dropdownMenu__item', 'menu__item')}
                   type="button"
                   role="menuitemradio"
                   aria-checked={groupMode === option.value}
                   onClick={() => {
                     onGroupMode(option.value)
-                    setOpenMenu(null)
                   }}
                 >
-                  <span className="dropdownMenu__check menu__check">
+                  <span className={m(menu, 'dropdownMenu__check', 'menu__check')}>
                     {groupMode === option.value ? <MacIcon name="check" /> : null}
                   </span>
-                  <span className="menu__txt">{option.label}</span>
+                  <span className={menu['menu__txt']}>{option.label}</span>
                 </button>
               ))}
+              {project ? (
+                <>
+                  <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
+                  <button
+                    className={m(menu, 'dropdownMenu__item', 'menu__item')}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onProject('')
+                      setOpenMenu(null)
+                    }}
+                  >
+                    <span className={menu['menu__txt']}>Clear project: {project}</span>
+                  </button>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>
-        {project ? (
-          <button className="chip chip-clear" onClick={() => onProject('')} title="Clear project filter">
-            <span>{project}</span>
-            <MacIcon name="close" />
-          </button>
-        ) : null}
       </div>
+      {project ? (
+        <button className={m(styles, 'chip', 'chip-clear')} onClick={() => onProject('')} title="Clear project filter">
+          <span>{project}</span>
+          <MacIcon name="close" />
+        </button>
+      ) : null}
+      {source ? (
+        <div className={styles['sb-activeFilters']}>
+          <span className={styles['sb-activeFilters__label']}>{sourceLabel}</span>
+          <span className={styles['sb-activeFilters__hint']}>· {groupLabel}</span>
+        </div>
+      ) : null}
     </div>
   )
 }

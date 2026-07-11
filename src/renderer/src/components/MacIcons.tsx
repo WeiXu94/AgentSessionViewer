@@ -164,6 +164,15 @@ export function Tri(): JSX.Element {
   )
 }
 
+/** Stroke chevron used in transcript tool/reasoning blocks. */
+export function Chevron(): JSX.Element {
+  return (
+    <svg viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M4.2 2.5 7.8 6 4.2 9.5" />
+    </svg>
+  )
+}
+
 export function AppIcon({ source, sub = false, size = 30 }: { source: string; sub?: boolean; size?: number }): JSX.Element {
   const color = sourceColor(source)
   return (

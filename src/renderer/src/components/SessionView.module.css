@@ -1,0 +1,259 @@
+/* SessionView */
+.detail__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Auto-split from styles.css — SessionView.module.css */
+/* Session view */
+.sessionView {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  --floating-control-width: 40px;
+}
+
+/* Floating block mode button */
+.blockModeButton {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: var(--floating-control-width);
+  height: 30px;
+  border: none;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--content) 88%, transparent);
+  color: var(--label-2);
+  box-shadow: var(--push-shadow), inset 0 0 0 0.5px var(--push-line);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    box-shadow 0.12s,
+    color 0.12s,
+    transform 0.12s;
+}
+
+.blockModeButton:hover {
+  background: color-mix(in srgb, var(--content) 96%, transparent);
+  color: var(--label);
+  transform: translateY(-1px);
+}
+
+.blockModeButton:active {
+  transform: translateY(0);
+}
+
+.blockModeButton--active,
+.blockModeButton--active:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.blockModeButton::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 60;
+  bottom: calc(100% + 7px);
+  right: 0;
+  width: max-content;
+  max-width: min(200px, calc(100vw - 48px));
+  padding: 5px 8px;
+  border-radius: var(--r-md);
+  background: var(--pop);
+  color: var(--label);
+  box-shadow: var(--pop-shadow);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
+}
+
+.blockModeButton:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.blockModeButton svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Floating transcript outline — same surface language as menus */
+.chatgptOutline {
+  position: absolute;
+  top: 30%;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
+  font-family: var(--sys);
+}
+
+.chatgptOutline__lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--floating-control-width);
+  gap: 5px;
+  padding: 10px 0;
+  border-radius: 10px;
+  cursor: default;
+  transition: background 0.15s;
+}
+
+.chatgptOutline__line {
+  width: 22px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--label-3);
+  transition: background 0.15s;
+}
+
+.chatgptOutline:hover .chatgptOutline__lines {
+  background: var(--menu-hover);
+}
+
+.chatgptOutline:hover .chatgptOutline__line {
+  background: var(--label-2);
+}
+
+.chatgptOutline__bridge {
+  width: 12px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.chatgptOutline__panel {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: 280px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(-50%) translateX(8px);
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--pop);
+  box-shadow: var(--pop-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, visibility 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+
+.chatgptOutline__panel--open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
+.chatgptOutline__header {
+  padding: 8px 10px 6px;
+  color: var(--label-3);
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.chatgptOutline__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chatgptOutline__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--label);
+  font-family: var(--sys);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.08s ease;
+}
+
+.chatgptOutline__item:hover {
+  background: var(--menu-hover);
+}
+
+.chatgptOutline__item:active {
+  background: var(--menu-active);
+}
+
+.chatgptOutline__item--active {
+  background: var(--menu-hover);
+}
+
+.chatgptOutline__item--active:hover {
+  background: var(--menu-active);
+}
+
+.chatgptOutline__num {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: var(--field);
+  color: var(--label-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chatgptOutline__item:hover .chatgptOutline__num {
+  background: var(--field);
+  color: var(--label);
+}
+
+.chatgptOutline__item--active .chatgptOutline__num {
+  background: var(--role);
+  color: #fff;
+}
+
+.chatgptOutline__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
