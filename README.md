@@ -14,19 +14,21 @@ with a windowed (virtualized) list + transcript so only visible rows ever hit th
 ## Run
 
 ```bash
-npm install
-npm run dev      # dev with hot reload
-npm run build    # production bundles into out/
+bun install
+bun run dev      # dev with hot reload
+bun run build    # production bundles into out/
 ```
 
-Requires Node ≥ 22 (Electron 35 ships Node 22; SQLite-backed sources use the built-in `node:sqlite`).
+Uses **bun** as the dev/ package manager. The app itself runs on Electron's bundled Node; the system
+runtime only matters for scripts and tests. Requires Node ≥ 22 (Electron 35 ships Node 22; SQLite-backed
+sources use the built-in `node:sqlite`), and the test suite must run on Node — Bun has no `node:sqlite`.
 
 ## Packaging & releases
 
 ```bash
-npm run pack:dir   # unpacked app in release/ (quick local sanity check)
-npm run package    # installers for the current OS (dmg/zip, nsis, or AppImage)
-npm run release    # build + publish artifacts to a GitHub Release (needs GH_TOKEN)
+bun run pack:dir   # unpacked app in release/ (quick local sanity check)
+bun run package    # installers for the current OS (dmg/zip, nsis, or AppImage)
+bun run release    # build + publish artifacts to a GitHub Release (needs GH_TOKEN)
 ```
 
 Config lives in `electron-builder.yml` (mac dmg+zip arm64/x64, Windows nsis, Linux AppImage; macOS
@@ -79,10 +81,10 @@ JSON view.
 
 ## Dev harness
 
-`scripts/smoke.ts` indexes real sessions and times transcript loading. Run it with:
+`scripts/smoke.ts` indexes real sessions and times transcript loading — runs directly under bun or node:
 
 ```bash
-npx esbuild scripts/smoke.ts --bundle --platform=node --format=esm --packages=external --outfile=scripts/smoke.mjs && node scripts/smoke.mjs
+bun scripts/smoke.ts
 ```
 
 ## License

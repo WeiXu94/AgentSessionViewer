@@ -6,6 +6,7 @@
   "author": "weixu <weixu1026@gmail.com>",
   "main": "./out/main/index.js",
   "license": "MIT",
+  "packageManager": "bun",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
