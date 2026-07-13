@@ -287,12 +287,13 @@ export function App(): JSX.Element {
   // Load the transcript whenever the selected session changes (stale loads ignored).
   // Keyed on source+id+path: DB-backed sources share one originalPath across sessions.
   useEffect(() => {
+    const reqId = ++reqRef.current
     if (!selected) {
       setTranscript(null)
       setTranscriptKey(null)
+      setLoadingTx(false)
       return
     }
-    const reqId = ++reqRef.current
     setLoadingTx(true)
     setTranscript(null)
     // The previous session's transcript lingers in state for one render after
@@ -300,13 +301,30 @@ export function App(): JSX.Element {
     // applied against it (the pendingJump effect gates on transcriptKey).
     setTranscriptKey(null)
     const key = metaKey(selected)
-    window.api.loadTranscript(selected.originalPath, selected.source, selected.id).then((tx) => {
-      if (reqRef.current === reqId) {
+    void window.api
+      .loadTranscript(selected.originalPath, selected.source, selected.id)
+      .then((tx) => {
+        if (reqRef.current !== reqId) return
         setTranscript(tx)
         setTranscriptKey(key)
         setLoadingTx(false)
-      }
-    })
+      })
+      .catch((error: unknown) => {
+        if (reqRef.current !== reqId) return
+        setTranscript({
+          source: selected.source,
+          originalPath: selected.originalPath,
+          reconstructed: false,
+          records: [],
+          nodes: [],
+          error: error instanceof Error ? error.message : String(error)
+        })
+        setTranscriptKey(key)
+        setLoadingTx(false)
+      })
+    return () => {
+      if (reqRef.current === reqId) reqRef.current++
+    }
   }, [selected?.source, selected?.id, selected?.originalPath])
 
   useEffect(() => {
