@@ -37,20 +37,17 @@ export function SessionList({
     overscan: 12
   })
 
-  const virtRef = useRef(virt)
-  virtRef.current = virt
-
   useEffect(() => {
     if (!selectedKey) return
     const index = rows.findIndex(
       (r) => r.kind === 'session' && metaKey(r.session) === selectedKey
     )
     if (index < 0) return
-    const visible = virtRef.current.getVirtualItems().some((item) => item.index === index)
+    const visible = virt.getVirtualItems().some((item) => item.index === index)
     if (!visible) {
-      virtRef.current.scrollToIndex(index, { align: 'center' })
+      virt.scrollToIndex(index, { align: 'center' })
     }
-  }, [selectedKey, rows])
+  }, [selectedKey, rows, virt])
 
   if (rows.length === 0) {
     return <div className={m(styles, 'list', 'list--empty')}>No sessions match.</div>

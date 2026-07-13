@@ -224,9 +224,12 @@ export function App(): JSX.Element {
   const globalReqRef = useRef(0)
   const scrollTokenRef = useRef(0)
   const pendingJumpRef = useRef<{ key: string; nodeIndex: number } | null>(null)
-  pendingJumpRef.current = pendingJump
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    pendingJumpRef.current = pendingJump
+  }, [pendingJump])
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
