@@ -49,6 +49,12 @@ interface SessionSearchMatch {
   ordinalInNode: number
 }
 
+interface PendingSearchJump {
+  key: string
+  nodeIndex: number
+  query: string
+}
+
 // Snippet highlight markers — the same pair GlobalSearch splits on. Built from
 // char codes so no literal control bytes land in the source file.
 const MARK_START = String.fromCharCode(2)
@@ -214,7 +220,7 @@ export function App(): JSX.Element {
   // Session keys whose result list is expanded past the collapsed preview.
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
   const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
-  const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
+  const [pendingJump, setPendingJump] = useState<PendingSearchJump | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number; query: string } | null>(null)
   // Identity (metaKey) of the session whose transcript is currently in `transcript`.
   // null while loading — a queued jump waits for this to match its target.
@@ -410,7 +416,7 @@ export function App(): JSX.Element {
     if (matchIdx >= 0) setActiveMatchIndex(matchIdx)
     // Cross-session jump: inline highlighting is off for non-session scope, so
     // carry the query along to briefly mark the matched text on the landed node.
-    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current, query: searchText.trim() })
+    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current, query: pendingJump.query })
     setPendingJump(null)
   }, [pendingJump, transcript, transcriptKey, loadingTx, searchMatches])
 
@@ -538,7 +544,7 @@ export function App(): JSX.Element {
   function openSearchResult(row: FlatSearchRow): void {
     const key = metaKey(row.group.session)
     setSearchOpen(false)
-    setPendingJump({ key, nodeIndex: row.match.nodeIndex })
+    setPendingJump({ key, nodeIndex: row.match.nodeIndex, query: searchText.trim() })
     selectSession(row.group.session, true)
   }
 
