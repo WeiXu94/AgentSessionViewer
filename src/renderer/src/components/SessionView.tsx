@@ -400,7 +400,8 @@ export function SessionView({ nodes, searchQuery, searchHitsByNode, activeMatch,
   useEffect(() => {
     topIndexRef.current = 0
     setTopIndex(0)
-    requestAnimationFrame(readTopIndex)
+    const frame = requestAnimationFrame(readTopIndex)
+    return () => cancelAnimationFrame(frame)
   }, [nodes, readTopIndex])
 
   useEffect(() => {

@@ -227,23 +227,46 @@ export function App(): JSX.Element {
   const [transcriptKey, setTranscriptKey] = useState<string | null>(null)
 
   const reqRef = useRef(0)
+  const listReqRef = useRef(0)
   const globalReqRef = useRef(0)
   const scrollTokenRef = useRef(0)
+  const refreshTimerRef = useRef<number | null>(null)
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  async function refresh(force = false): Promise<void> {
+  const refresh = useCallback(async (force = false): Promise<void> => {
+    const reqId = ++listReqRef.current
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
     setLoadingList(true)
     setRefreshing(true)
-    const list = await window.api.list(force)
-    setSessions(list)
-    setLoadingList(false)
-    window.setTimeout(() => setRefreshing(false), 260)
-  }
+    try {
+      const list = await window.api.list(force)
+      if (listReqRef.current === reqId) setSessions(list)
+    } catch {
+      // Keep the last successful list; the current request still settles below.
+    } finally {
+      if (listReqRef.current !== reqId) return
+      setLoadingList(false)
+      refreshTimerRef.current = window.setTimeout(() => {
+        setRefreshing(false)
+        refreshTimerRef.current = null
+      }, 260)
+    }
+  }, [])
 
   useEffect(() => {
     void refresh(false)
-  }, [])
+    return () => {
+      listReqRef.current++
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
+  }, [refresh])
 
   // Persist the group-by choice so the same grouping survives relaunch.
   useEffect(() => {
