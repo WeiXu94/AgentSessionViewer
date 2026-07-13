@@ -394,10 +394,6 @@ export function App(): JSX.Element {
 
   const canSearchTranscript = !!transcript && !transcript.error && transcript.nodes.length > 0
 
-  useEffect(() => {
-    setActiveMatchIndex(0)
-  }, [transcript?.nodes, inlineQuery])
-
   // Apply a queued search jump once the TARGET transcript is in. Gating on
   // `transcriptKey` (not just `selected`) is essential: when jumping to another
   // session, `selected` updates immediately but the previous session's transcript
@@ -512,23 +508,47 @@ export function App(): JSX.Element {
     })
   }, [])
 
-  useEffect(() => {
+  function resetSearchResultView(): void {
     setActiveResultIndex(0)
     setExpandedResults(new Set())
-  }, [searchText, effectiveScope, wholeWord, matchCase])
+  }
 
-  const openSearchResult = useCallback(
-    (row: FlatSearchRow): void => {
-      const key = metaKey(row.group.session)
-      setSearchOpen(false)
-      setPendingJump({ key, nodeIndex: row.match.nodeIndex })
-      selectSession(row.group.session, true)
-    },
-    [selected]
-  )
+  function changeSearchText(value: string): void {
+    setSearchText(value)
+    setActiveMatchIndex(0)
+    resetSearchResultView()
+  }
+
+  function changeSearchScope(scope: SearchScope): void {
+    setSearchScope(scope)
+    setActiveMatchIndex(0)
+    resetSearchResultView()
+  }
+
+  function changeWholeWord(value: boolean): void {
+    setWholeWord(value)
+    resetSearchResultView()
+  }
+
+  function changeMatchCase(value: boolean): void {
+    setMatchCase(value)
+    resetSearchResultView()
+  }
+
+  function openSearchResult(row: FlatSearchRow): void {
+    const key = metaKey(row.group.session)
+    setSearchOpen(false)
+    setPendingJump({ key, nodeIndex: row.match.nodeIndex })
+    selectSession(row.group.session, true)
+  }
 
   const openSearch = useCallback((scope?: SearchScope): void => {
-    if (scope) setSearchScope(scope)
+    if (scope) {
+      setSearchScope(scope)
+      setActiveMatchIndex(0)
+      setActiveResultIndex(0)
+      setExpandedResults(new Set())
+    }
     setSearchOpen(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
@@ -571,8 +591,14 @@ export function App(): JSX.Element {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      if (searchText) setSearchText('')
-      else setSearchOpen(false)
+      if (searchText) {
+        setSearchText('')
+        setActiveMatchIndex(0)
+        setActiveResultIndex(0)
+        setExpandedResults(new Set())
+      } else {
+        setSearchOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -798,16 +824,16 @@ export function App(): JSX.Element {
       {searchOpen ? (
         <GlobalSearch
           query={searchText}
-          onQuery={setSearchText}
+          onQuery={changeSearchText}
           onKeyDown={onSearchKeyDown}
           scope={effectiveScope}
-          onScope={setSearchScope}
+          onScope={changeSearchScope}
           projectLabel={projectContext?.label ?? null}
           hasSession={canSearchTranscript}
           wholeWord={wholeWord}
-          onWholeWord={setWholeWord}
+          onWholeWord={changeWholeWord}
           matchCase={matchCase}
-          onMatchCase={setMatchCase}
+          onMatchCase={changeMatchCase}
           response={searchResponse}
           loading={searchLoading}
           scopeLabel={scopeDisplay}
