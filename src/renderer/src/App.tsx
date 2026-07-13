@@ -453,6 +453,7 @@ export function App(): JSX.Element {
 
   // Debounced FTS query for project/all scopes. Session scope is computed locally.
   useEffect(() => {
+    const reqId = ++globalReqRef.current
     if (effectiveScope === 'session') {
       setGlobalResults(null)
       setGlobalLoading(false)
@@ -465,16 +466,25 @@ export function App(): JSX.Element {
       return
     }
     setGlobalLoading(true)
-    const reqId = ++globalReqRef.current
     const timer = window.setTimeout(() => {
-      void window.api.searchSessions(q, { scope: scopeFilter, wholeWord, matchCase }).then((res) => {
-        if (globalReqRef.current !== reqId) return
-        setGlobalResults(res)
-        setGlobalLoading(false)
-        setActiveResultIndex(0)
-      })
+      void window.api
+        .searchSessions(q, { scope: scopeFilter, wholeWord, matchCase })
+        .then((res) => {
+          if (globalReqRef.current !== reqId) return
+          setGlobalResults(res)
+          setGlobalLoading(false)
+          setActiveResultIndex(0)
+        })
+        .catch(() => {
+          if (globalReqRef.current !== reqId) return
+          setGlobalResults({ available: false, indexing: false, groups: [], totalSessions: 0 })
+          setGlobalLoading(false)
+        })
     }, 250)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(timer)
+      if (globalReqRef.current === reqId) globalReqRef.current++
+    }
     // indexProgress.done re-runs the query once a background index pass lands.
   }, [searchText, effectiveScope, scopeFilter?.repo, scopeFilter?.cwd, wholeWord, matchCase, indexProgress.done])
 
