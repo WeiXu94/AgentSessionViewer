@@ -177,7 +177,7 @@ export function GlobalSearch({
   }
 
   return (
-    <div className={styles['searchModal__backdrop']} onMouseDown={onClose}>
+    <div className={styles['searchModal__backdrop']} role="presentation" onMouseDown={onClose}>
       <div
         className={styles.searchModal}
         role="dialog"

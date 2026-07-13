@@ -171,7 +171,7 @@ export function FilterBar({
         </div>
       </div>
       {project ? (
-        <button className={m(styles, 'chip', 'chip-clear')} onClick={() => onProject('')} title="Clear project filter">
+        <button type="button" className={m(styles, 'chip', 'chip-clear')} onClick={() => onProject('')} title="Clear project filter">
           <span>{project}</span>
           <MacIcon name="close" />
         </button>

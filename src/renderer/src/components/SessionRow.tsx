@@ -1,4 +1,4 @@
-import { memo, type MouseEvent } from 'react'
+import { memo, type KeyboardEvent, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
 import { fmtTimeShort, sessionTitle } from '../util'
 import { cx, m } from '../styles/cx'
@@ -39,7 +39,15 @@ export const SessionRow = memo(function SessionRow({
         removing && 'row--removing'
       )}
       style={{ paddingLeft: 12 + depth * 16 }}
+      role="button"
+      tabIndex={0}
+      aria-current={selected || undefined}
       onClick={onClick}
+      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        onClick()
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         onContextMenu(e)
@@ -48,6 +56,7 @@ export const SessionRow = memo(function SessionRow({
     >
       {hasChildren ? (
         <button
+          type="button"
           className={m(styles, 'row__caret', expanded && 'row__caret--open')}
           onClick={(e) => {
             e.stopPropagation()

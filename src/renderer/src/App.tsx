@@ -733,7 +733,25 @@ export function App(): JSX.Element {
           </aside>
         )}
 
-        {sidebarCollapsed ? null : <div className={m(layout, 'divider', 'mac-divider')} onMouseDown={startDrag} />}
+        {sidebarCollapsed ? null : (
+          <div
+            className={m(layout, 'divider', 'mac-divider')}
+            role="separator"
+            aria-label="Resize session sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={240}
+            aria-valuemax={520}
+            aria-valuenow={sidebarW}
+            tabIndex={0}
+            onMouseDown={startDrag}
+            onKeyDown={(event) => {
+              const delta = event.key === 'ArrowLeft' ? -16 : event.key === 'ArrowRight' ? 16 : 0
+              if (!delta) return
+              event.preventDefault()
+              setSidebarW((width) => Math.min(520, Math.max(240, width + delta)))
+            }}
+          />
+        )}
 
         <main className={m(layout, 'main', 'mac-detail')}>
           <Viewer
