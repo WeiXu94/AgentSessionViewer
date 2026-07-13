@@ -88,6 +88,15 @@ export function fmtTime(ms: number): string {
   })
 }
 
+/** Clock time only — used in the compact session list. */
+export function fmtTimeShort(ms: number): string {
+  if (!ms) return ''
+  return new Date(ms).toLocaleString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
 export function fmtBytes(n: number): string {
   if (!n) return '0 B'
   if (n < 1024) return `${n} B`
@@ -103,6 +112,47 @@ export function sessionTitle(s: SessionMeta): string {
 /** Stable unique identity for a session (originalPath isn't unique for DB-backed sources). */
 export function metaKey(s: SessionMeta): string {
   return `${s.source}\u0000${s.id}`
+}
+
+const STARRED_KEY = 'asv.starredSessions:v1'
+const LEGACY_STARRED_KEY = 'asv.starredSessions'
+
+function readStarredKeys(): Set<string> {
+  try {
+    const current = localStorage.getItem(STARRED_KEY)
+    const raw = current ?? localStorage.getItem(LEGACY_STARRED_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    const keys = new Set(parsed.filter((k): k is string => typeof k === 'string'))
+    if (current === null) {
+      localStorage.setItem(STARRED_KEY, JSON.stringify([...keys]))
+      localStorage.removeItem(LEGACY_STARRED_KEY)
+    }
+    return keys
+  } catch {
+    return new Set()
+  }
+}
+
+function writeStarredKeys(keys: Set<string>): void {
+  try {
+    localStorage.setItem(STARRED_KEY, JSON.stringify([...keys]))
+  } catch {
+    /* storage may be unavailable — ignore. */
+  }
+}
+
+export function isSessionStarred(s: SessionMeta): boolean {
+  return readStarredKeys().has(metaKey(s))
+}
+
+export function setSessionStarred(s: SessionMeta, starred: boolean): void {
+  const keys = readStarredKeys()
+  const key = metaKey(s)
+  if (starred) keys.add(key)
+  else keys.delete(key)
+  writeStarredKeys(keys)
 }
 
 export type ListMode = 'flat' | 'tree'

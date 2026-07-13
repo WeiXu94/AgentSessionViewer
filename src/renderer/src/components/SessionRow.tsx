@@ -1,7 +1,9 @@
-import { memo, type MouseEvent } from 'react'
+import { memo, type KeyboardEvent, type MouseEvent } from 'react'
 import type { SessionMeta } from '../../../shared/ipc'
-import { fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
-import { MacIcon, Tri } from './MacIcons'
+import { fmtTimeShort, sessionTitle } from '../util'
+import { cx, m } from '../styles/cx'
+import { Tri } from './MacIcons'
+import styles from './SessionList.module.css'
 
 interface Props {
   session: SessionMeta
@@ -29,9 +31,23 @@ export const SessionRow = memo(function SessionRow({
   const isSub = session.variant === 'subagent'
   return (
     <div
-      className={`row${selected ? ' row--selected' : ''}${isSub ? ' row--sub' : ''}${removing ? ' row--removing' : ''}`}
-      style={{ paddingLeft: 4 + depth * 16 }}
+      className={m(
+        styles,
+        'row',
+        selected && 'row--selected',
+        isSub && 'row--sub',
+        removing && 'row--removing'
+      )}
+      style={{ paddingLeft: 12 + depth * 16 }}
+      role="button"
+      tabIndex={0}
+      aria-current={selected || undefined}
       onClick={onClick}
+      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        onClick()
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         onContextMenu(e)
@@ -40,7 +56,8 @@ export const SessionRow = memo(function SessionRow({
     >
       {hasChildren ? (
         <button
-          className={`row__caret${expanded ? ' row__caret--open' : ''}`}
+          type="button"
+          className={m(styles, 'row__caret', expanded && 'row__caret--open')}
           onClick={(e) => {
             e.stopPropagation()
             onToggle()
@@ -49,34 +66,17 @@ export const SessionRow = memo(function SessionRow({
         >
           <Tri />
         </button>
-      ) : (
-        <span className="row__caret row__caret--spacer" />
-      )}
-      <span className="row__bar" style={{ background: sourceColor(session.source) }} />
-      <div className="row__main">
-        <div className="row__line1">
-          <span className="row__title">{sessionTitle(session)}</span>
-          <span className="row__time">{fmtTime(session.updatedAt)}</span>
+      ) : null}
+      <div className={styles['row__main']}>
+        <div className={styles['row__line1']}>
+          <span className={styles['row__title']}>{sessionTitle(session)}</span>
+          <span className={styles['row__time']}>{fmtTimeShort(session.updatedAt)}</span>
         </div>
-        <div className="row__meta row__line2">
-          {isSub ? (
-            <span className="vchip vchip--sub">{session.variantLabel || 'subagent'}</span>
-          ) : (
-            <>
-              <span className="badge" style={{ color: sourceColor(session.source) }}>
-                {sourceName(session.source)}
-              </span>
-              {session.variantLabel ? <span className="vchip">{session.variantLabel}</span> : null}
-              {session.forkParentId ? <span className="vchip">fork</span> : null}
-            </>
-          )}
-          {session.repo ? (
-            <span className="row__repo">
-              <MacIcon name="repo" />
-              {session.repo}
-            </span>
-          ) : null}
-        </div>
+        {isSub && session.variantLabel ? (
+          <div className={cx(styles['row__meta'], styles['row__line2'])}>
+            <span className={cx(styles.vchip, styles['vchip--sub'])}>{session.variantLabel}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   )

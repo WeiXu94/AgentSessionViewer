@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef } from 'react'
+import styles from './JsonView.module.css'
 
 const MAX_DISPLAY = 200_000
 
@@ -39,14 +40,14 @@ export function JsonView({ records, reconstructed }: Props): JSX.Element {
   })
 
   return (
-    <div className="json" ref={parentRef}>
+    <div className={styles.json} ref={parentRef}>
       {reconstructed ? (
-        <div className="banner">
+        <div className={styles.banner}>
           Reconstructed from a database — these records are normalized, not the raw on-disk file.
         </div>
       ) : null}
       {records.length === 0 ? (
-        <div className="transcript--empty">No records.</div>
+        <div className={styles.empty}>No records.</div>
       ) : (
         <div style={{ height: virt.getTotalSize(), position: 'relative', width: '100%' }}>
           {virt.getVirtualItems().map((item) => (
@@ -62,10 +63,10 @@ export function JsonView({ records, reconstructed }: Props): JSX.Element {
                 transform: `translateY(${item.start}px)`
               }}
             >
-              <div className="json__record">
-                <span className="json__idx">{item.index}</span>
+              <div className={styles['json__record']}>
+                <span className={styles['json__idx']}>{item.index}</span>
                 <pre
-                  className="json__pre"
+                  className={styles['json__pre']}
                   dangerouslySetInnerHTML={{ __html: colorJson(stringify(records[item.index])) }}
                 />
               </div>

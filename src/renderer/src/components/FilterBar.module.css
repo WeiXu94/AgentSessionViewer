@@ -1,0 +1,227 @@
+/* Auto-split from styles.css — FilterBar.module.css */
+/* Sidebar controls */
+.filterbar,
+.sb-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 14px 12px;
+  flex-shrink: 0;
+}
+
+.sb-searchrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sb-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border-radius: var(--r-md);
+  background: var(--content);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  transition: box-shadow 0.14s, background 0.14s;
+}
+
+.sb-search:focus-within {
+  background: var(--content);
+  box-shadow: 0 0 0 3px var(--accent-soft), inset 0 0 0 1px var(--accent);
+}
+
+.sb-search svg {
+  width: 13px;
+  height: 13px;
+  margin: 0 6px 0 9px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--label-3);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding-right: 8px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--label);
+  font-size: 12.5px;
+}
+
+.search::placeholder {
+  color: var(--label-3);
+}
+
+.sb-activeFilters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  color: var(--label-3);
+  font-size: 11px;
+}
+
+.sb-activeFilters__label {
+  color: var(--label-2);
+  font-weight: 560;
+}
+
+.sb-activeFilters__hint {
+  color: var(--label-3);
+}
+
+.filterbar__row,
+.sb-filterrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.menuWrap,
+.popup {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.menuWrap--source,
+.popup {
+  flex: 1;
+  min-width: 0;
+}
+
+.selectButton,
+.popup__btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px 0 9px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--push);
+  box-shadow: var(--push-shadow), inset 0 0 0 0.5px var(--push-line);
+  color: var(--label);
+  cursor: pointer;
+  text-align: left;
+}
+
+.selectButton:active,
+.popup__btn:active {
+  filter: brightness(0.97);
+}
+
+.selectButton__label,
+.lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup__chev {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 18px;
+  margin-right: -1px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.popup__chev svg {
+  width: 9px;
+  height: 12px;
+  fill: none;
+  stroke: var(--accent-fg);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.filterIconBtn,
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--content);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  color: var(--label-2);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.filterIconBtn:hover,
+.icon-btn:hover {
+  color: var(--label);
+  background: var(--hover);
+}
+
+.filterIconBtn--active,
+.icon-btn--on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.filterIconBtn__icon,
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chip,
+.chip-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 6px 0 9px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip span,
+.chip-clear span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip svg,
+.chip-clear svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+

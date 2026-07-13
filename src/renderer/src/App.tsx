@@ -24,6 +24,10 @@ import { displayNodeText } from './components/NodeBubble'
 import { SessionList } from './components/SessionList'
 import { Viewer } from './components/Viewer'
 import { accentForeground, buildRows, loadGroupMode, saveGroupMode, type GroupMode, metaKey } from './util'
+import { m } from './styles/cx'
+import layout from './styles/layout.module.css'
+import menu from './styles/menus.module.css'
+import listStyles from './components/SessionList.module.css'
 
 type RowMenuAction =
   | 'copy-resume'
@@ -43,6 +47,12 @@ interface RowMenuState {
 interface SessionSearchMatch {
   nodeIndex: number
   ordinalInNode: number
+}
+
+interface PendingSearchJump {
+  key: string
+  nodeIndex: number
+  query: string
 }
 
 // Snippet highlight markers — the same pair GlobalSearch splits on. Built from
@@ -185,7 +195,8 @@ export function App(): JSX.Element {
 
   const [source, setSource] = useState('')
   const [project, setProject] = useState('')
-  const [sidebarW, setSidebarW] = useState(380)
+  const [listQuery, setListQuery] = useState('')
+  const [sidebarW, setSidebarW] = useState(300)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [groupMode, setGroupMode] = useState<GroupMode>(loadGroupMode)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -209,32 +220,53 @@ export function App(): JSX.Element {
   // Session keys whose result list is expanded past the collapsed preview.
   const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set())
   const [indexProgress, setIndexProgress] = useState<SearchIndexProgress>({ indexed: 0, total: 0, done: true })
-  const [pendingJump, setPendingJump] = useState<{ key: string; nodeIndex: number } | null>(null)
+  const [pendingJump, setPendingJump] = useState<PendingSearchJump | null>(null)
   const [scrollTarget, setScrollTarget] = useState<{ index: number; token: number; query: string } | null>(null)
   // Identity (metaKey) of the session whose transcript is currently in `transcript`.
   // null while loading — a queued jump waits for this to match its target.
   const [transcriptKey, setTranscriptKey] = useState<string | null>(null)
 
   const reqRef = useRef(0)
+  const listReqRef = useRef(0)
   const globalReqRef = useRef(0)
   const scrollTokenRef = useRef(0)
-  const pendingJumpRef = useRef<{ key: string; nodeIndex: number } | null>(null)
-  pendingJumpRef.current = pendingJump
+  const refreshTimerRef = useRef<number | null>(null)
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  async function refresh(force = false): Promise<void> {
+  const refresh = useCallback(async (force = false): Promise<void> => {
+    const reqId = ++listReqRef.current
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
     setLoadingList(true)
     setRefreshing(true)
-    const list = await window.api.list(force)
-    setSessions(list)
-    setLoadingList(false)
-    window.setTimeout(() => setRefreshing(false), 260)
-  }
+    try {
+      const list = await window.api.list(force)
+      if (listReqRef.current === reqId) setSessions(list)
+    } catch {
+      // Keep the last successful list; the current request still settles below.
+    } finally {
+      if (listReqRef.current !== reqId) return
+      setLoadingList(false)
+      refreshTimerRef.current = window.setTimeout(() => {
+        setRefreshing(false)
+        refreshTimerRef.current = null
+      }, 260)
+    }
+  }, [])
 
   useEffect(() => {
     void refresh(false)
-  }, [])
+    return () => {
+      listReqRef.current++
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
+  }, [refresh])
 
   // Persist the group-by choice so the same grouping survives relaunch.
   useEffect(() => {
@@ -279,12 +311,13 @@ export function App(): JSX.Element {
   // Load the transcript whenever the selected session changes (stale loads ignored).
   // Keyed on source+id+path: DB-backed sources share one originalPath across sessions.
   useEffect(() => {
+    const reqId = ++reqRef.current
     if (!selected) {
       setTranscript(null)
       setTranscriptKey(null)
+      setLoadingTx(false)
       return
     }
-    const reqId = ++reqRef.current
     setLoadingTx(true)
     setTranscript(null)
     // The previous session's transcript lingers in state for one render after
@@ -292,23 +325,31 @@ export function App(): JSX.Element {
     // applied against it (the pendingJump effect gates on transcriptKey).
     setTranscriptKey(null)
     const key = metaKey(selected)
-    window.api.loadTranscript(selected.originalPath, selected.source, selected.id).then((tx) => {
-      if (reqRef.current === reqId) {
+    void window.api
+      .loadTranscript(selected.originalPath, selected.source, selected.id)
+      .then((tx) => {
+        if (reqRef.current !== reqId) return
         setTranscript(tx)
         setTranscriptKey(key)
         setLoadingTx(false)
-      }
-    })
+      })
+      .catch((error: unknown) => {
+        if (reqRef.current !== reqId) return
+        setTranscript({
+          source: selected.source,
+          originalPath: selected.originalPath,
+          reconstructed: false,
+          records: [],
+          nodes: [],
+          error: error instanceof Error ? error.message : String(error)
+        })
+        setTranscriptKey(key)
+        setLoadingTx(false)
+      })
+    return () => {
+      if (reqRef.current === reqId) reqRef.current++
+    }
   }, [selected?.source, selected?.id, selected?.originalPath])
-
-  useEffect(() => {
-    setTab('session')
-    setScrollTarget(null)
-    // Arriving via a search jump keeps the query so highlights survive.
-    if (selected && pendingJumpRef.current?.key === metaKey(selected)) return
-    setPendingJump(null) // navigating elsewhere voids any queued jump
-    setActiveMatchIndex(0)
-  }, [selected?.source, selected?.id])
 
   useEffect(() => window.api.onSearchIndexProgress(setIndexProgress), [])
 
@@ -326,12 +367,18 @@ export function App(): JSX.Element {
   }, [sessions])
 
   const filtered = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
     return sessions.filter((s) => {
       if (source && s.source !== source) return false
       if (project && s.repo !== project) return false
+      if (q) {
+        const title = (s.summary || s.id).toLowerCase()
+        const hay = `${title} ${s.repo ?? ''} ${s.cwd ?? ''} ${s.sourceLabel}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
       return true
     })
-  }, [sessions, source, project])
+  }, [sessions, source, project, listQuery])
 
   const rows = useMemo(
     () => buildRows(filtered, sessions, 'tree', expanded, groupMode, collapsedGroups),
@@ -342,14 +389,18 @@ export function App(): JSX.Element {
     return sessions.find((session) => session.source === selected.source && session.id === selected.forkParentId) ?? null
   }, [selected?.source, selected?.forkParentId, sessions])
 
-  function jumpToSession(session: SessionMeta): void {
+  function selectSession(session: SessionMeta | null, preservePendingJump = false): void {
     setSelected(session)
     setTab('session')
-    setRowMenu(null)
+    setScrollTarget(null)
+    setActiveMatchIndex(0)
+    if (!preservePendingJump) setPendingJump(null)
   }
 
-  const visibleCount = filtered.filter((s) => s.variant !== 'subagent').length
-  const totalCount = sessions.filter((s) => s.variant !== 'subagent').length
+  function jumpToSession(session: SessionMeta): void {
+    selectSession(session)
+    setRowMenu(null)
+  }
 
   // Inline transcript highlight only reflects the query when scoped to this
   // session — searching "all" shouldn't randomly light up the open transcript.
@@ -372,10 +423,6 @@ export function App(): JSX.Element {
 
   const canSearchTranscript = !!transcript && !transcript.error && transcript.nodes.length > 0
 
-  useEffect(() => {
-    setActiveMatchIndex(0)
-  }, [transcript?.nodes, inlineQuery])
-
   // Apply a queued search jump once the TARGET transcript is in. Gating on
   // `transcriptKey` (not just `selected`) is essential: when jumping to another
   // session, `selected` updates immediately but the previous session's transcript
@@ -392,7 +439,7 @@ export function App(): JSX.Element {
     if (matchIdx >= 0) setActiveMatchIndex(matchIdx)
     // Cross-session jump: inline highlighting is off for non-session scope, so
     // carry the query along to briefly mark the matched text on the landed node.
-    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current, query: searchText.trim() })
+    else setScrollTarget({ index: pendingJump.nodeIndex, token: ++scrollTokenRef.current, query: pendingJump.query })
     setPendingJump(null)
   }, [pendingJump, transcript, transcriptKey, loadingTx, searchMatches])
 
@@ -424,6 +471,7 @@ export function App(): JSX.Element {
 
   // Debounced FTS query for project/all scopes. Session scope is computed locally.
   useEffect(() => {
+    const reqId = ++globalReqRef.current
     if (effectiveScope === 'session') {
       setGlobalResults(null)
       setGlobalLoading(false)
@@ -436,16 +484,25 @@ export function App(): JSX.Element {
       return
     }
     setGlobalLoading(true)
-    const reqId = ++globalReqRef.current
     const timer = window.setTimeout(() => {
-      void window.api.searchSessions(q, { scope: scopeFilter, wholeWord, matchCase }).then((res) => {
-        if (globalReqRef.current !== reqId) return
-        setGlobalResults(res)
-        setGlobalLoading(false)
-        setActiveResultIndex(0)
-      })
+      void window.api
+        .searchSessions(q, { scope: scopeFilter, wholeWord, matchCase })
+        .then((res) => {
+          if (globalReqRef.current !== reqId) return
+          setGlobalResults(res)
+          setGlobalLoading(false)
+          setActiveResultIndex(0)
+        })
+        .catch(() => {
+          if (globalReqRef.current !== reqId) return
+          setGlobalResults({ available: false, indexing: false, groups: [], totalSessions: 0 })
+          setGlobalLoading(false)
+        })
     }, 250)
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(timer)
+      if (globalReqRef.current === reqId) globalReqRef.current++
+    }
     // indexProgress.done re-runs the query once a background index pass lands.
   }, [searchText, effectiveScope, scopeFilter?.repo, scopeFilter?.cwd, wholeWord, matchCase, indexProgress.done])
 
@@ -480,23 +537,47 @@ export function App(): JSX.Element {
     })
   }, [])
 
-  useEffect(() => {
+  function resetSearchResultView(): void {
     setActiveResultIndex(0)
     setExpandedResults(new Set())
-  }, [searchText, effectiveScope, wholeWord, matchCase])
+  }
 
-  const openSearchResult = useCallback(
-    (row: FlatSearchRow): void => {
-      const key = metaKey(row.group.session)
-      setSearchOpen(false)
-      setTab('session')
-      setPendingJump({ key, nodeIndex: row.match.nodeIndex })
-      if (!selected || metaKey(selected) !== key) setSelected(row.group.session)
-    },
-    [selected]
-  )
+  function changeSearchText(value: string): void {
+    setSearchText(value)
+    setActiveMatchIndex(0)
+    resetSearchResultView()
+  }
 
-  const openSearch = useCallback((): void => {
+  function changeSearchScope(scope: SearchScope): void {
+    setSearchScope(scope)
+    setActiveMatchIndex(0)
+    resetSearchResultView()
+  }
+
+  function changeWholeWord(value: boolean): void {
+    setWholeWord(value)
+    resetSearchResultView()
+  }
+
+  function changeMatchCase(value: boolean): void {
+    setMatchCase(value)
+    resetSearchResultView()
+  }
+
+  function openSearchResult(row: FlatSearchRow): void {
+    const key = metaKey(row.group.session)
+    setSearchOpen(false)
+    setPendingJump({ key, nodeIndex: row.match.nodeIndex, query: searchText.trim() })
+    selectSession(row.group.session, true)
+  }
+
+  const openSearch = useCallback((scope?: SearchScope): void => {
+    if (scope) {
+      setSearchScope(scope)
+      setActiveMatchIndex(0)
+      setActiveResultIndex(0)
+      setExpandedResults(new Set())
+    }
     setSearchOpen(true)
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
@@ -509,13 +590,14 @@ export function App(): JSX.Element {
       const key = event.key.toLowerCase()
       if ((event.metaKey || event.ctrlKey) && (key === 'f' || key === 'k')) {
         event.preventDefault()
-        if (event.shiftKey && key === 'f') setSearchScope('all')
-        openSearch()
+        if (event.shiftKey && key === 'f') openSearch('all')
+        else if (key === 'f' && canSearchTranscript) openSearch('session')
+        else openSearch()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [openSearch])
+  }, [openSearch, canSearchTranscript])
 
   function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>): void {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -538,8 +620,14 @@ export function App(): JSX.Element {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      if (searchText) setSearchText('')
-      else setSearchOpen(false)
+      if (searchText) {
+        setSearchText('')
+        setActiveMatchIndex(0)
+        setActiveResultIndex(0)
+        setExpandedResults(new Set())
+      } else {
+        setSearchOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -617,7 +705,7 @@ export function App(): JSX.Element {
         // Sweep the row out via CSS, then drop it from local state. No full
         // rescan — the deleted session is gone from storage, so it won't
         // reappear on the next manual reload.
-        if (selected && metaKey(selected) === metaKey(s)) setSelected(null)
+        if (selected && metaKey(selected) === metaKey(s)) selectSession(null)
         const doomed = collectRemovableKeys(sessions, s)
         setRemovingKeys((prev) => {
           const next = new Set(prev)
@@ -641,7 +729,7 @@ export function App(): JSX.Element {
     e.preventDefault()
     const startX = e.clientX
     const startW = sidebarW
-    const move = (ev: MouseEvent): void => setSidebarW(Math.min(680, Math.max(260, startW + ev.clientX - startX)))
+    const move = (ev: MouseEvent): void => setSidebarW(Math.min(520, Math.max(240, startW + ev.clientX - startX)))
     const up = (): void => {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
@@ -650,17 +738,9 @@ export function App(): JSX.Element {
     window.addEventListener('mouseup', up)
   }
 
-  // Search + collapse controls, left-aligned in the toolbar header (search left
-  // of collapse), next to the window controls. They stay put whether or not the
-  // sidebar is collapsed.
-  const searchBtn = (
-    <button className="tbtn" type="button" onClick={openSearch} title="Search sessions (⌘F)" aria-label="Search sessions">
-      <MacIcon name="search" />
-    </button>
-  )
   const refreshBtn = (
     <button
-      className={`tbtn${refreshing ? ' tbtn--spin' : ''}`}
+      className={m(layout, 'tbtn', refreshing && 'tbtn--spin')}
       type="button"
       onClick={() => void refresh(true)}
       title="Reload sessions"
@@ -671,7 +751,7 @@ export function App(): JSX.Element {
   )
   const collapseBtn = (
     <button
-      className="tbtn toolbar__toggle"
+      className={m(layout, 'tbtn', 'toolbar__toggle')}
       type="button"
       onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
       title={sidebarCollapsed ? 'Show sessions' : 'Hide sessions'}
@@ -684,40 +764,22 @@ export function App(): JSX.Element {
 
   return (
     <div
-      className={`app${sidebarCollapsed ? ' app--sidebar-collapsed' : ''}`}
+      className={m(layout, 'app', sidebarCollapsed && 'app--sidebar-collapsed')}
       data-density="cozy"
       data-del-anim="slide"
       style={{ '--sidebar-w': `${sidebarW}px` } as CSSProperties}
     >
-      <div className="toolbar">
-        <div className="toolbar__lead">
-          {searchBtn}
-          {refreshBtn}
+      <div className={layout.toolbar}>
+        <div className={layout['toolbar__lead']}>
           {collapseBtn}
+          {refreshBtn}
         </div>
-        <div className="toolbar__sep" />
-        <div className="toolbar__main">
-          <span className="count-pill">
-            <b>{visibleCount}</b>
-            {visibleCount !== totalCount ? ` of ${totalCount}` : ''} sessions
-          </span>
-          <span className="toolbar__spacer" />
-          <div className="segmented" aria-label="Viewer tab">
-            <button className={`seg${tab === 'session' ? ' seg--on' : ''}`} onClick={() => setTab('session')}>
-              Session
-              <span className="seg__num">{transcript ? transcript.nodes.length : 0}</span>
-            </button>
-            <button className={`seg${tab === 'json' ? ' seg--on' : ''}`} onClick={() => setTab('json')}>
-              JSON
-              <span className="seg__num">{transcript ? transcript.records.length : 0}</span>
-            </button>
-          </div>
-        </div>
+        <div className={layout['toolbar__main']} />
       </div>
 
-      <div className="body mac-body">
+      <div className={m(layout, 'body', 'mac-body')}>
         {sidebarCollapsed ? null : (
-          <aside className="sidebar mac-sidebar" style={{ width: sidebarW }}>
+          <aside className={m(layout, 'sidebar', 'mac-sidebar')} style={{ width: sidebarW }}>
             <FilterBar
               source={source}
               project={project}
@@ -726,15 +788,18 @@ export function App(): JSX.Element {
               onSource={setSource}
               onProject={setProject}
               onGroupMode={setGroupMode}
+              listQuery={listQuery}
+              onListQuery={setListQuery}
             />
             {loadingList ? (
-              <div className="list list--empty">Scanning agent histories...</div>
+              <div className={m(listStyles, 'list', 'list--empty')}>Scanning agent histories...</div>
             ) : (
               <SessionList
                 rows={rows}
                 selectedKey={selected ? metaKey(selected) : null}
                 removingKeys={removingKeys}
-                onSelect={setSelected}
+                grouped={groupMode !== 'chronological'}
+                onSelect={selectSession}
                 onContextMenu={onContextMenu}
                 onToggle={toggleExpand}
                 onToggleGroup={toggleGroup}
@@ -743,20 +808,41 @@ export function App(): JSX.Element {
           </aside>
         )}
 
-        {sidebarCollapsed ? null : <div className="divider mac-divider" onMouseDown={startDrag} />}
+        {sidebarCollapsed ? null : (
+          <div
+            className={m(layout, 'divider', 'mac-divider')}
+            role="separator"
+            aria-label="Resize session sidebar"
+            aria-orientation="vertical"
+            aria-valuemin={240}
+            aria-valuemax={520}
+            aria-valuenow={sidebarW}
+            tabIndex={0}
+            onMouseDown={startDrag}
+            onKeyDown={(event) => {
+              const delta = event.key === 'ArrowLeft' ? -16 : event.key === 'ArrowRight' ? 16 : 0
+              if (!delta) return
+              event.preventDefault()
+              setSidebarW((width) => Math.min(520, Math.max(240, width + delta)))
+            }}
+          />
+        )}
 
-        <main className="main mac-detail">
+        <main className={m(layout, 'main', 'mac-detail')}>
           <Viewer
+            key={selected ? metaKey(selected) : 'no-session'}
             session={selected}
             transcript={transcript}
             loading={loadingTx}
             tab={tab}
+            onTab={setTab}
             parentSession={selectedForkParent}
             onJumpToParent={selectedForkParent ? () => jumpToSession(selectedForkParent) : undefined}
             searchQuery={inlineQuery}
             searchHitsByNode={searchHitsByNode}
             activeMatch={activeMatch}
             scrollTarget={scrollTarget}
+            onOpenSearch={() => openSearch('session')}
             onReveal={() => {
               if (selected) void window.api.reveal(selected.originalPath)
             }}
@@ -767,16 +853,16 @@ export function App(): JSX.Element {
       {searchOpen ? (
         <GlobalSearch
           query={searchText}
-          onQuery={setSearchText}
+          onQuery={changeSearchText}
           onKeyDown={onSearchKeyDown}
           scope={effectiveScope}
-          onScope={setSearchScope}
+          onScope={changeSearchScope}
           projectLabel={projectContext?.label ?? null}
           hasSession={canSearchTranscript}
           wholeWord={wholeWord}
-          onWholeWord={setWholeWord}
+          onWholeWord={changeWholeWord}
           matchCase={matchCase}
-          onMatchCase={setMatchCase}
+          onMatchCase={changeMatchCase}
           response={searchResponse}
           loading={searchLoading}
           scopeLabel={scopeDisplay}
@@ -795,75 +881,75 @@ export function App(): JSX.Element {
       {rowMenu ? (
         <div
           ref={rowMenuRef}
-          className="dropdownMenu contextMenu menu ctxmenu"
+          className={m(menu, 'dropdownMenu', 'contextMenu', 'menu', 'ctxmenu')}
           role="menu"
           style={{ left: rowMenu.x, top: rowMenu.y }}
           onContextMenu={(event) => event.preventDefault()}
         >
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.resumeCommand}
             onClick={() => void runRowMenuAction('copy-resume')}
           >
-            <span className="menu__txt">Copy Resume Command</span>
+            <span className={menu['menu__txt']}>Copy Resume Command</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-id')}
           >
-            <span className="menu__txt">Copy Session ID</span>
+            <span className={menu['menu__txt']}>Copy Session ID</span>
           </button>
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('copy-path')}
           >
-            <span className="menu__txt">Copy Path</span>
+            <span className={menu['menu__txt']}>Copy Path</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('reveal')}
           >
-            <span className="menu__txt">Reveal Session Log in Finder</span>
+            <span className={menu['menu__txt']}>Reveal Session Log in Finder</span>
           </button>
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.cwd}
             onClick={() => void runRowMenuAction('open-cwd')}
           >
-            <span className="menu__txt">Open Working Directory</span>
+            <span className={menu['menu__txt']}>Open Working Directory</span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
             disabled={!rowMenu.session.repo}
             onClick={() => void runRowMenuAction('filter-project')}
           >
-            <span className="menu__txt">
+            <span className={menu['menu__txt']}>
               {rowMenu.session.repo ? `Filter by Project: ${rowMenu.session.repo}` : 'Filter by Project'}
             </span>
           </button>
-          <div className="dropdownMenu__separator menu__sep" />
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
           <button
-            className="dropdownMenu__item menu__item menu__item--danger"
+            className={m(menu, 'dropdownMenu__item', 'menu__item', 'menu__item--danger')}
             type="button"
             role="menuitem"
             onClick={() => void runRowMenuAction('delete')}
           >
-            <span className="menu__txt">
+            <span className={menu['menu__txt']}>
               {rowMenu.session.originalPath.toLowerCase().endsWith('.db')
                 ? 'Delete Session'
                 : 'Move to Trash'}

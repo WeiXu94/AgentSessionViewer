@@ -2,7 +2,6 @@ import { createRequire } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
-import { app } from 'electron'
 import type {
   GlobalSearchGroup,
   GlobalSearchMatch,
@@ -39,12 +38,20 @@ interface SqliteDatabase {
   close(): void
 }
 
-function dbPath(): string {
+// Lazy so the module imports in non-Electron contexts (tests, scripts).
+// `import { app } from 'electron'` throws outside the Electron runtime.
+const nodeRequire = createRequire(import.meta.url)
+function userDataDir(): string {
   try {
-    return path.join(app.getPath('userData'), DB_FILE)
+    const { app } = nodeRequire('electron') as { app: { getPath: (n: string) => string } }
+    return app.getPath('userData')
   } catch {
-    return path.join(os.homedir(), '.agentsessionviewer', DB_FILE)
+    return path.join(os.homedir(), '.agentsessionviewer')
   }
+}
+
+function dbPath(): string {
+  return path.join(userDataDir(), DB_FILE)
 }
 
 // NOT the indexer's NUL separator: node:sqlite truncates TEXT at embedded NUL

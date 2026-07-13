@@ -1,0 +1,155 @@
+/* Auto-split from styles.css — menus.module.css */
+/* Menus — shared surface for filter, more, and context menus */
+.dropdownMenu,
+.menu {
+  position: absolute;
+  z-index: 60;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--pop);
+  box-shadow: var(--pop-shadow);
+  font-family: var(--sys);
+  animation: pop 0.12s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.dropdownMenu--source,
+.menu--under {
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+}
+
+.dropdownMenu--right,
+.menu--right {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
+.dropdownMenu__label,
+.menu__label {
+  padding: 8px 10px 4px;
+  color: var(--label-3);
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.dropdownMenu__item,
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--label);
+  font-family: var(--sys);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.08s ease;
+}
+
+.dropdownMenu__item:hover:not(:disabled),
+.menu__item:hover:not(:disabled) {
+  background: var(--menu-hover);
+  color: var(--label);
+}
+
+.dropdownMenu__item:active:not(:disabled),
+.menu__item:active:not(:disabled) {
+  background: var(--menu-active);
+}
+
+.dropdownMenu__item:disabled,
+.menu__item:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.menu__item--danger {
+  color: #c23b32;
+}
+
+.menu__item--danger:hover:not(:disabled) {
+  background: rgb(194 59 50 / 0.08);
+  color: #c23b32;
+}
+
+.menu__item--danger:active:not(:disabled) {
+  background: rgb(194 59 50 / 0.14);
+}
+
+.dropdownMenu__check,
+.menu__check {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--role);
+}
+
+.dropdownMenu__item:hover .dropdownMenu__check,
+.menu__item:hover .menu__check {
+  color: var(--role);
+}
+
+.dropdownMenu__check svg,
+.menu__check svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dropdownMenu__itemText,
+.menu__txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdownMenu__count,
+.menu__count {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dropdownMenu__item:hover .dropdownMenu__count,
+.menu__item:hover .menu__count {
+  color: var(--label-2);
+}
+
+.dropdownMenu__separator,
+.menu__sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--sep);
+}
+
+.contextMenu,
+.ctxmenu {
+  position: fixed;
+  min-width: 232px;
+}
+
+.export__menu {
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+}
+

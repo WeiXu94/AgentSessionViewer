@@ -1,11 +1,12 @@
 {
   "name": "agent-session-viewer",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Fast viewer for local AI coding-agent sessions (Claude, Codex, Pi, and more)",
   "author": "weixu <weixu1026@gmail.com>",
   "main": "./out/main/index.js",
   "license": "MIT",
+  "packageManager": "bun",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -19,8 +20,11 @@
     "release": "electron-vite build && electron-builder --publish always"
   },
   "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.2.9",
     "@tanstack/react-virtual": "^3.10.9",
     "chalk": "^4.1.2",
+    "dompurify": "^3.4.12",
+    "katex": "^0.17.0",
     "marked": "^18.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -28,6 +32,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "@types/marked": "^5.0.2",
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",

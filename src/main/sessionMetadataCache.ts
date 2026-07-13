@@ -1,10 +1,22 @@
 import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { app } from 'electron'
 import { adapters, ALL_TOOLS } from './sessions/parsers/registry.js'
 import type { SessionSource, UnifiedSession } from './sessions/types/index.js'
+
+// Lazy so the module imports in non-Electron contexts (tests, scripts).
+// `import { app } from 'electron'` throws outside the Electron runtime.
+const nodeRequire = createRequire(import.meta.url)
+function userDataDir(): string {
+  try {
+    const { app } = nodeRequire('electron') as { app: { getPath: (n: string) => string } }
+    return app.getPath('userData')
+  } catch {
+    return path.join(os.homedir(), '.agentsessionviewer')
+  }
+}
 
 // v4: claude subagent sessions get filename-derived ids (collision fix).
 // v5: claude session titles now read the generated `ai-title` record.
@@ -51,11 +63,7 @@ interface CacheFile {
 }
 
 function cachePath(): string {
-  try {
-    return path.join(app.getPath('userData'), CACHE_FILE)
-  } catch {
-    return path.join(os.homedir(), '.agentsessionviewer', CACHE_FILE)
-  }
+  return path.join(userDataDir(), CACHE_FILE)
 }
 
 function adapterEnvFingerprint(): string {

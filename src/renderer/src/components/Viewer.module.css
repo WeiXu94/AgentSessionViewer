@@ -1,0 +1,449 @@
+/* Auto-split from styles.css — Viewer.module.css */
+/* Detail pane */
+.viewer,
+.detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.viewer--empty,
+.detail--empty {
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--label-2);
+  text-align: center;
+}
+
+.empty-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--content-2);
+  color: var(--label-3);
+  box-shadow: inset 0 0 0 0.5px var(--sep);
+}
+
+.empty-mark svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewer__header,
+.dheader {
+  /* Single row height shared by title + search + more */
+  --title-size: 28px;
+  --ctrl-h: 36px;
+  padding: 4px 36px 18px;
+  flex-shrink: 0;
+  border-bottom: none;
+}
+
+.dheader__titleRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  height: var(--ctrl-h);
+}
+
+.dheader__titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.viewer__title,
+.dheader__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  height: var(--ctrl-h);
+  overflow: hidden;
+  color: var(--label);
+  font-family: var(--serif);
+  font-size: var(--title-size);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: var(--ctrl-h);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewerStar {
+  display: grid;
+  place-items: center;
+  width: var(--ctrl-h);
+  height: var(--ctrl-h);
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.viewerStar:hover {
+  background: var(--hover);
+  color: var(--label-2);
+}
+
+.viewerStar--on {
+  color: #c9a227;
+}
+
+.viewerStar__icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dheader__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: var(--ctrl-h);
+  -webkit-app-region: no-drag;
+}
+
+.viewerSearchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: var(--ctrl-h);
+  margin: 0;
+  padding: 0 12px 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-2);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, box-shadow 0.12s;
+}
+
+.viewerSearchBtn:hover {
+  color: var(--label);
+  box-shadow: inset 0 0 0 1px var(--field-line);
+}
+
+.viewerSearchBtn svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewerSearchBtn kbd {
+  margin-left: 2px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--field);
+  color: var(--label-3);
+  font-family: var(--sys);
+  font-size: 10.5px;
+  font-weight: 560;
+}
+
+.viewerForkInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.viewerForkChip {
+  position: relative;
+  cursor: default;
+}
+
+.viewerForkChip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 7px 9px;
+  border-radius: var(--r-md);
+  background: var(--pop);
+  color: var(--label);
+  box-shadow: var(--pop-shadow);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: pre-wrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 0.08s ease,
+    transform 0.08s ease;
+}
+
+.viewerForkChip:hover::after,
+.viewerForkChip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.viewerFork__jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 15px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-xs);
+  background: var(--field);
+  color: var(--label-2);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+}
+
+.viewerFork__jump:hover:not(:disabled) {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.viewerFork__jump:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.viewerFork__jumpIcon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewer__sub,
+.dheader__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 9px;
+  margin-top: 6px;
+  color: var(--label-2);
+  font-size: 13px;
+}
+
+.dheader__sourceLine {
+  color: var(--label-2);
+  font-family: var(--sys);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
+.dheader__meta .mi {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.dheader__meta .mi svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.8;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dheader__meta .sep-dot {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+
+.dheader__source {
+  font-weight: 600;
+}
+
+.viewer__path,
+.dheader__path {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 4px 9px;
+  border-radius: var(--r-sm);
+  background: var(--field);
+  color: var(--label-2);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  cursor: pointer;
+  direction: ltr;
+  font-family: var(--mono);
+  font-size: 11px;
+  transition: color 0.12s, box-shadow 0.12s;
+}
+
+.viewer__path:hover,
+.dheader__path:hover {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.viewer__path span,
+.dheader__path span {
+  overflow: hidden;
+  direction: rtl;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer__path svg,
+.dheader__path svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.viewer__body,
+.detail__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.loading,
+.error,
+.transcript--empty {
+  padding: 24px;
+  color: var(--label-2);
+}
+
+.error {
+  color: var(--error);
+  font-family: var(--mono);
+  white-space: pre-wrap;
+}
+
+
+/* ── Export / more menu (viewer header) ─────────────────────────────── */
+.exportWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: var(--ctrl-h);
+  margin: 0;
+}
+
+.exportWrap .export__btn {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--ctrl-h);
+  height: var(--ctrl-h);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-2);
+  box-shadow: inset 0 0 0 0.5px var(--field-line);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.exportWrap .export__btn:hover {
+  background: var(--hover);
+  color: var(--label);
+}
+
+.exportWrap .export__btn--spin svg {
+  animation: spin 0.7s linear infinite;
+}
+
+.exportWrap .export__btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.exportWrap .export__btn svg circle {
+  stroke: none;
+}
+
+.exportError {
+  max-width: 300px;
+  overflow: hidden;
+  color: var(--error);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export__menu {
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+}
+
+.vchip {
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  background: var(--field);
+  color: var(--label-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 15px;
+  white-space: nowrap;
+}

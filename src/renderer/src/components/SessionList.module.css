@@ -1,0 +1,366 @@
+/* Auto-split from styles.css — SessionList.module.css */
+/* Session list */
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 10px 16px;
+}
+
+.list--empty {
+  padding: 44px 20px;
+  color: var(--label-2);
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.group-row,
+.grouphdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 10px 12px 2px 10px;
+  color: var(--label-2);
+  cursor: default;
+  user-select: none;
+}
+
+.group-row__caret,
+.grouphdr__tri {
+  display: grid;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+  transition: transform 0.16s;
+}
+
+.group-row__caret svg,
+.grouphdr__tri svg {
+  width: 7px;
+  height: 7px;
+  fill: currentColor;
+}
+
+.group-row__caret--open {
+  transform: rotate(90deg);
+}
+
+.group-row__title,
+.grouphdr__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-row__count,
+.grouphdr__count {
+  margin-left: auto;
+  color: var(--label-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--row-h);
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  cursor: default;
+  user-select: none;
+  overflow: hidden;
+}
+
+
+
+/* TEMP: three delete-animation variants under evaluation. Switch via the
+ * [data-del-anim] attribute on .app. */
+
+/* Variant 1 — fade + collapse: fade out with a small nudge, then collapse.
+[data-del-anim='fade'] .row {
+  transition:
+    opacity 260ms ease,
+    transform 260ms ease,
+    height 300ms ease 220ms,
+    margin-top 300ms ease 220ms,
+    margin-bottom 300ms ease 220ms,
+    padding-top 300ms ease 220ms,
+    padding-bottom 300ms ease 220ms;
+}
+[data-del-anim='fade'] .row--removing {
+  opacity: 0;
+  transform: translateX(-10px);
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+*/
+
+/* Variant 2 — scale + fade (macOS style): shrinks down as it fades.
+[data-del-anim='scale'] .row {
+  transition:
+    opacity 380ms ease,
+    transform 380ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 320ms ease 320ms,
+    margin-top 320ms ease 320ms,
+    margin-bottom 320ms ease 320ms,
+    padding-top 320ms ease 320ms,
+    padding-bottom 320ms ease 320ms;
+}
+[data-del-anim='scale'] .row--removing {
+  opacity: 0;
+  transform: scale(0.9);
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+*/
+
+/* Variant 3 — slide out (sidebar style): slides left + fades, then collapses
+ * with an overlapping ease-in so the two phases blend into one motion. */
+[data-del-anim='slide'] .row {
+  transition:
+    opacity 420ms ease,
+    transform 420ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 140ms ease-in 300ms,
+    margin-top 140ms ease-in 300ms,
+    margin-bottom 140ms ease-in 300ms,
+    padding-top 140ms ease-in 300ms,
+    padding-bottom 140ms ease-in 300ms;
+}
+[data-del-anim='slide'] .row--removing {
+  opacity: 0;
+  transform: translateX(-44px);
+  height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* TEMP toggle button — small label, no icon.
+.tbtn--temp {
+  width: auto;
+  min-width: 38px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-fg);
+  opacity: 0.85;
+}
+.tbtn--temp:hover {
+  opacity: 1;
+}
+*/
+
+.row:hover {
+  background: var(--hover);
+}
+
+.row--selected,
+.row--selected:hover {
+  background: var(--selected);
+}
+
+.row--sub {
+  margin-left: 14px;
+}
+
+.row__caret {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+  transition: transform 0.16s, color 0.12s;
+}
+
+.row__caret svg {
+  width: 8px;
+  height: 8px;
+  fill: currentColor;
+}
+
+.row__caret--open {
+  transform: rotate(90deg);
+}
+
+.row__caret:hover {
+  color: var(--label-2);
+}
+
+.row__caret--spacer {
+  cursor: default;
+}
+
+.row__bar {
+  display: none;
+}
+
+.app-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  position: relative;
+  border-radius: 28%;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  box-shadow: var(--avatar-ring);
+}
+
+.app-icon--sub::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--sidebar);
+}
+
+.row--selected .app-icon--sub::after {
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+.row__main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.row__line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.row__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label);
+  font-size: 13.5px;
+  font-weight: 450;
+  letter-spacing: -0.011em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row--selected .row__title {
+  font-weight: 450;
+  color: var(--label);
+}
+
+.row__time {
+  flex-shrink: 0;
+  color: var(--label-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row--selected .row__time {
+  color: var(--label-2);
+}
+
+.row__meta,
+.row__line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--label-2);
+  font-size: 11.5px;
+}
+
+.badge,
+.row__source {
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.row--selected .badge,
+.row--selected .row__source {
+  color: var(--label-2) !important;
+}
+
+.vchip {
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  background: var(--field);
+  color: var(--label-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.row--selected .vchip {
+  background: var(--field);
+  color: var(--label-2);
+}
+
+.vchip--sub {
+  text-transform: none;
+}
+
+.row__repo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label-2);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__repo svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.row--selected .row__repo {
+  color: var(--label-2);
+}
+

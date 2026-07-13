@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ExportFormat, SessionMeta, TranscriptPayload } from '../../../shared/ipc'
-import { fmtBytes, fmtTime, sessionTitle, sourceColor, sourceName } from '../util'
+import { isSessionStarred, sessionTitle, setSessionStarred, sourceName } from '../util'
+import { m } from '../styles/cx'
+import menu from '../styles/menus.module.css'
+import styles from './Viewer.module.css'
 import { MacIcon } from './MacIcons'
 import { JsonView } from './JsonView'
 import { SessionView, type SessionSearchMatch } from './SessionView'
@@ -10,6 +13,7 @@ interface Props {
   transcript: TranscriptPayload | null
   loading: boolean
   tab: 'session' | 'json'
+  onTab: (tab: 'session' | 'json') => void
   parentSession?: SessionMeta | null
   onJumpToParent?: () => void
   searchQuery: string
@@ -17,28 +21,53 @@ interface Props {
   activeMatch: SessionSearchMatch | null
   scrollTarget?: { index: number; token: number; query: string } | null
   onReveal: () => void
+  onOpenSearch: () => void
 }
 
 function JumpToParentIcon(): JSX.Element {
   return (
-    <svg className="viewerFork__jumpIcon" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className={styles['viewerFork__jumpIcon']} viewBox="0 0 16 16" aria-hidden="true">
       <path d="M5.5 4.5h6v6" />
       <path d="m11.25 4.75-7 7" />
     </svg>
   )
 }
 
-function ExportIcon(): JSX.Element {
+function StarIcon({ filled }: { filled: boolean }): JSX.Element {
   return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M8 2v7.5" />
-      <path d="m5 6.5 3 3 3-3" />
-      <path d="M3 10.5v2A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5v-2" />
+    <svg className={styles['viewerStar__icon']} viewBox="0 0 16 16" aria-hidden="true">
+      {filled ? (
+        <path
+          fill="currentColor"
+          stroke="none"
+          d="M8 1.6 9.9 5.5l4.3.6-3.1 3 0.7 4.3L8 11.4l-3.8 2 0.7-4.3-3.1-3 4.3-.6L8 1.6z"
+        />
+      ) : (
+        <path d="M8 2.2 9.6 5.6l3.8.5-2.7 2.7.7 3.8L8 10.7l-3.4 1.9.7-3.8L2.6 6.1l3.8-.5L8 2.2z" />
+      )}
     </svg>
   )
 }
 
-function ExportMenu({ session, disabled }: { session: SessionMeta; disabled: boolean }): JSX.Element {
+function MoreIcon(): JSX.Element {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="12.5" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function HeaderMenu({
+  session,
+  canExport,
+  onReveal
+}: {
+  session: SessionMeta
+  canExport: boolean
+  onReveal: () => void
+}): JSX.Element {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -79,36 +108,50 @@ function ExportMenu({ session, disabled }: { session: SessionMeta; disabled: boo
   }
 
   return (
-    <div className="exportWrap" ref={wrapRef}>
-      {error ? <span className="exportError" title={error}>{error}</span> : null}
+    <div className={styles.exportWrap} ref={wrapRef}>
+      {error ? <span className={styles.exportError} title={error}>{error}</span> : null}
       <button
-        className={`tbtn export__btn${busy ? ' tbtn--spin' : ''}`}
+        className={m(styles, 'export__btn', busy && 'export__btn--spin')}
         type="button"
-        disabled={disabled || busy}
-        title="Export session"
-        aria-label="Export session"
+        disabled={busy}
+        title="More"
+        aria-label="More actions"
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
-        {busy ? <MacIcon name="reload" /> : <ExportIcon />}
+        {busy ? <MacIcon name="reload" /> : <MoreIcon />}
       </button>
       {open ? (
-        <div className="dropdownMenu menu export__menu" role="menu">
+        <div className={m(menu, 'dropdownMenu', 'menu', 'export__menu')} role="menu">
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onReveal()
+            }}
+          >
+            <span className={menu['menu__txt']}>Reveal in Finder</span>
+          </button>
+          <div className={m(menu, 'dropdownMenu__separator', 'menu__sep')} />
+          <button
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
+            type="button"
+            role="menuitem"
+            disabled={!canExport}
             onClick={() => void runExport('markdown')}
           >
-            <span className="menu__txt">Export as Markdown…</span>
+            <span className={menu['menu__txt']}>Export as Markdown…</span>
           </button>
           <button
-            className="dropdownMenu__item menu__item"
+            className={m(menu, 'dropdownMenu__item', 'menu__item')}
             type="button"
             role="menuitem"
+            disabled={!canExport}
             onClick={() => void runExport('html')}
           >
-            <span className="menu__txt">Export as HTML…</span>
+            <span className={menu['menu__txt']}>Export as HTML…</span>
           </button>
         </div>
       ) : null}
@@ -127,12 +170,15 @@ export function Viewer({
   searchHitsByNode,
   activeMatch,
   scrollTarget,
-  onReveal
+  onReveal,
+  onOpenSearch
 }: Props): JSX.Element {
+  const [starred, setStarred] = useState(() => (session ? isSessionStarred(session) : false))
+
   if (!session) {
     return (
-      <div className="viewer viewer--empty detail detail--empty">
-        <div className="empty-mark">
+      <div className={m(styles, 'viewer', 'viewer--empty', 'detail', 'detail--empty')}>
+        <div className={styles['empty-mark']}>
           <MacIcon name="tray" />
         </div>
         <div>Select a session to view its transcript.</div>
@@ -148,77 +194,71 @@ export function Viewer({
     : ''
 
   const canExport = !!transcript && !transcript.error && transcript.nodes.length > 0 && !loading
+  const metaBits = [sourceName(session.source), session.variantLabel].filter(Boolean)
 
   return (
-    <div className="viewer detail">
-      <header className="viewer__header dheader">
-        <div className="dheader__top">
-          <div className="dheader__copy">
-            <div className="viewer__title dheader__title">{sessionTitle(session)}</div>
-            <div className="viewer__sub dheader__meta">
-              <span className="badge dheader__source" style={{ color: sourceColor(session.source) }}>
-                {sourceName(session.source)}
-              </span>
-              {session.variantLabel ? <span className="vchip">{session.variantLabel}</span> : null}
-              {session.forkParentId ? (
-                <span className="viewerForkInline">
-                  <span className="vchip viewerForkChip" data-tooltip={forkTooltip} aria-label={forkTooltip}>
-                    fork
-                  </span>
-                  <button
-                    className="viewerFork__jump"
-                    type="button"
-                    disabled={!parentSession || !onJumpToParent}
-                    title={parentSession ? 'Jump to parent session' : 'Parent session not found'}
-                    aria-label={parentSession ? 'Jump to parent session' : 'Parent session not found'}
-                    onClick={onJumpToParent}
-                  >
-                    <JumpToParentIcon />
-                  </button>
-                </span>
-              ) : null}
-              {session.repo ? (
-                <span className="mi">
-                  <MacIcon name="repo" />
-                  {session.repo}
-                </span>
-              ) : null}
-              {session.branch ? (
-                <span className="mi">
-                  <MacIcon name="branch" />
-                  {session.branch}
-                </span>
-              ) : null}
-              {session.model ? (
-                <span className="mi">
-                  <MacIcon name="cpu" />
-                  {session.model}
-                </span>
-              ) : null}
-              <span className="sep-dot" />
-              <span className="mi">
-                <MacIcon name="clock" />
-                {fmtTime(session.updatedAt)}
-              </span>
-              <span className="mi">
-                <MacIcon name="weight" />
-                {fmtBytes(session.bytes)}
-              </span>
-            </div>
+    <div className={m(styles, 'viewer', 'detail')}>
+      <header className={m(styles, 'viewer__header', 'dheader')}>
+        <div className={styles['dheader__titleRow']}>
+          <div className={styles['dheader__titleGroup']}>
+            <div className={m(styles, 'viewer__title', 'dheader__title')}>{sessionTitle(session)}</div>
+            <button
+              className={m(styles, 'viewerStar', starred && 'viewerStar--on')}
+              type="button"
+              title={starred ? 'Unstar' : 'Star'}
+              aria-label={starred ? 'Unstar session' : 'Star session'}
+              aria-pressed={starred}
+              onClick={() => {
+                const next = !starred
+                setSessionStarred(session, next)
+                setStarred(next)
+              }}
+            >
+              <StarIcon filled={starred} />
+            </button>
           </div>
-          <ExportMenu session={session} disabled={!canExport} />
+          <div className={styles['dheader__actions']}>
+            <button
+              className={styles.viewerSearchBtn}
+              type="button"
+              onClick={onOpenSearch}
+              title="Search in session (⌘F)"
+              aria-label="Search in session"
+            >
+              <MacIcon name="search" />
+              <span>Search in session</span>
+              <kbd>⌘F</kbd>
+            </button>
+            <HeaderMenu session={session} canExport={canExport} onReveal={onReveal} />
+          </div>
         </div>
-        <div className="viewer__path dheader__path" onClick={onReveal} title="Reveal in Finder">
-          <MacIcon name="finder" />
-          <span>{session.originalPath}</span>
+        <div className={m(styles, 'viewer__sub', 'dheader__meta')}>
+          <span className={styles['dheader__sourceLine']}>{metaBits.join(' · ')}</span>
+          {session.forkParentId ? (
+            <span className={styles.viewerForkInline}>
+              <span className={m(styles, 'vchip', 'viewerForkChip')} data-tooltip={forkTooltip} aria-label={forkTooltip}>
+                fork
+              </span>
+              <button
+                className={styles['viewerFork__jump']}
+                type="button"
+                disabled={!parentSession || !onJumpToParent}
+                title={parentSession ? 'Jump to parent session' : 'Parent session not found'}
+                aria-label={parentSession ? 'Jump to parent session' : 'Parent session not found'}
+                onClick={onJumpToParent}
+              >
+                <JumpToParentIcon />
+              </button>
+            </span>
+          ) : null}
         </div>
       </header>
 
-      <div className="viewer__body detail__body">
+      <div className={m(styles, 'viewer__body', 'detail__body')}>
         {loading ? (
-          <div className="loading">Loading transcript...</div>
+          <div className={styles.loading}>Loading transcript...</div>
         ) : transcript?.error ? (
-          <div className="error">Failed to load: {transcript.error}</div>
+          <div className={styles.error}>Failed to load: {transcript.error}</div>
         ) : !transcript ? null : tab === 'session' ? (
           <SessionView
             nodes={transcript.nodes}
