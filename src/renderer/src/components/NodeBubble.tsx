@@ -6,6 +6,7 @@ import { Chevron } from './MacIcons'
 import styles from './NodeBubble.module.css'
 import { marked, type Tokens } from 'marked'
 import katex from 'katex'
+import DOMPurify from 'dompurify'
 
 const MAX_DISPLAY = 200_000
 
@@ -88,7 +89,7 @@ const mathExtension = {
 marked.use(mathExtension)
 
 function mdBody(text: string): ReactNode {
-  const html = marked.parse(text, { async: false }) as string
+  const html = DOMPurify.sanitize(marked.parse(text, { async: false }) as string)
   return (
     <span
       className={styles["msg--md"]}
