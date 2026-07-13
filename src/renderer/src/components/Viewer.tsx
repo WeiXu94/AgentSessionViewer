@@ -173,11 +173,7 @@ export function Viewer({
   onReveal,
   onOpenSearch
 }: Props): JSX.Element {
-  const [starred, setStarred] = useState(false)
-
-  useEffect(() => {
-    setStarred(session ? isSessionStarred(session) : false)
-  }, [session?.id, session?.source])
+  const [starred, setStarred] = useState(() => (session ? isSessionStarred(session) : false))
 
   if (!session) {
     return (
@@ -213,11 +209,9 @@ export function Viewer({
               aria-label={starred ? 'Unstar session' : 'Star session'}
               aria-pressed={starred}
               onClick={() => {
-                setStarred((prev) => {
-                  const next = !prev
-                  setSessionStarred(session, next)
-                  return next
-                })
+                const next = !starred
+                setSessionStarred(session, next)
+                setStarred(next)
               }}
             >
               <StarIcon filled={starred} />

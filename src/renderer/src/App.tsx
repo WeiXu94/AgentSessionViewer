@@ -755,6 +755,7 @@ export function App(): JSX.Element {
 
         <main className={m(layout, 'main', 'mac-detail')}>
           <Viewer
+            key={selected ? metaKey(selected) : 'no-session'}
             session={selected}
             transcript={transcript}
             loading={loadingTx}
