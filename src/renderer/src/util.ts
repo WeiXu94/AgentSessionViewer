@@ -114,15 +114,22 @@ export function metaKey(s: SessionMeta): string {
   return `${s.source}\u0000${s.id}`
 }
 
-const STARRED_KEY = 'asv.starredSessions'
+const STARRED_KEY = 'asv.starredSessions:v1'
+const LEGACY_STARRED_KEY = 'asv.starredSessions'
 
 function readStarredKeys(): Set<string> {
   try {
-    const raw = localStorage.getItem(STARRED_KEY)
+    const current = localStorage.getItem(STARRED_KEY)
+    const raw = current ?? localStorage.getItem(LEGACY_STARRED_KEY)
     if (!raw) return new Set()
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return new Set()
-    return new Set(parsed.filter((k): k is string => typeof k === 'string'))
+    const keys = new Set(parsed.filter((k): k is string => typeof k === 'string'))
+    if (current === null) {
+      localStorage.setItem(STARRED_KEY, JSON.stringify([...keys]))
+      localStorage.removeItem(LEGACY_STARRED_KEY)
+    }
+    return keys
   } catch {
     return new Set()
   }
