@@ -799,8 +799,10 @@ export async function extractKimiContext(session: UnifiedSession, config?: Verbo
 
   const toolData = extractToolData(messages, resolvedConfig);
   const sessionNotes = extractSessionNotes(messages);
-  const wireMetadata = await readWireMetadata(session.originalPath);
-  const metadataDir = await getSessionMetadataDir(session.originalPath);
+  const [wireMetadata, metadataDir] = await Promise.all([
+    readWireMetadata(session.originalPath),
+    getSessionMetadataDir(session.originalPath),
+  ]);
   const statePath = metadataDir ? path.join(metadataDir, 'state.json') : undefined;
   const legacyMetadataPath = metadataDir ? path.join(metadataDir, 'metadata.json') : undefined;
   const sourceMetadata: Record<string, unknown> = {

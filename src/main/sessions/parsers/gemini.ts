@@ -517,8 +517,7 @@ function extractSessionNotes(sessionData: GeminiSession): SessionNotes {
  * Parse all Gemini sessions
  */
 export async function parseGeminiSessions(): Promise<UnifiedSession[]> {
-  const files = await findSessionFiles();
-  const projectDirectories = await loadProjectDirectoryMap();
+  const [files, projectDirectories] = await Promise.all([findSessionFiles(), loadProjectDirectoryMap()]);
   const sessions: UnifiedSession[] = [];
 
   for (const filePath of files) {

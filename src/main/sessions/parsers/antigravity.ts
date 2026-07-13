@@ -1242,12 +1242,16 @@ async function readOfflineArtifacts(brainDir: string | undefined): Promise<{
   const messages: ConversationMessage[] = [];
   const pendingTasks: string[] = [];
   const compactParts: string[] = [];
-  const taskPath = await findBrainArtifactPath(brainDir, 'task.md');
-  const planPath = await findBrainArtifactPath(brainDir, 'implementation_plan.md');
-  const walkthroughPath = await findBrainArtifactPath(brainDir, 'walkthrough.md');
-  const task = taskPath ? await readArtifact(taskPath) : undefined;
-  const plan = planPath ? await readArtifact(planPath) : undefined;
-  const walkthrough = walkthroughPath ? await readArtifact(walkthroughPath) : undefined;
+  const [taskPath, planPath, walkthroughPath] = await Promise.all([
+    findBrainArtifactPath(brainDir, 'task.md'),
+    findBrainArtifactPath(brainDir, 'implementation_plan.md'),
+    findBrainArtifactPath(brainDir, 'walkthrough.md'),
+  ]);
+  const [task, plan, walkthrough] = await Promise.all([
+    taskPath ? readArtifact(taskPath) : undefined,
+    planPath ? readArtifact(planPath) : undefined,
+    walkthroughPath ? readArtifact(walkthroughPath) : undefined,
+  ]);
 
   if (task) {
     messages.push({ role: 'user', content: taskFromMarkdown(task) ?? task });
