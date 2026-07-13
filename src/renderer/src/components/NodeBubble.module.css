@@ -353,7 +353,7 @@
   stroke-linejoin: round;
 }
 
-details[open] .block__tri {
+details[open] > summary > .block__tri {
   transform: rotate(90deg);
 }
 

@@ -13,11 +13,7 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
     "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/**/*.test.ts",
-    "pack:dir": "electron-vite build && electron-builder --dir",
-    "package": "electron-vite build && electron-builder",
-    "package:mac": "electron-vite build && electron-builder --mac",
-    "install:mac": "bash scripts/install-macos.sh",
-    "release": "electron-vite build && electron-builder --publish always"
+    "install:mac": "bash scripts/install-macos.sh"
   },
   "dependencies": {
     "@fontsource-variable/source-serif-4": "^5.2.9",

@@ -23,15 +23,13 @@ Uses **bun** as the dev/ package manager. The app itself runs on Electron's bund
 runtime only matters for scripts and tests. Requires Node ≥ 22 (Electron 35 ships Node 22; SQLite-backed
 sources use the built-in `node:sqlite`), and the test suite must run on Node — Bun has no `node:sqlite`.
 
-## Packaging & releases
+## Local install & releases
 
 ```bash
-bun run pack:dir   # unpacked app in release/ (quick local sanity check)
-bun run package    # installers for the current OS (dmg/zip, nsis, or AppImage)
-bun run release    # build + publish artifacts to a GitHub Release (needs GH_TOKEN)
+bun run install:mac   # build in a temporary directory and install to /Applications
 ```
 
-Config lives in `electron-builder.yml` (mac dmg+zip arm64/x64, Windows nsis, Linux AppImage; macOS
+Release config lives in `electron-builder.yml` (mac dmg arm64/universal, Windows nsis, Linux AppImage; macOS
 build is **unsigned** — open via right-click → Open the first time).
 
 CI: `.github/workflows/release.yml` builds on macOS/Windows/Linux and uploads to a GitHub Release when

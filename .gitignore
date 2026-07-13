@@ -8,7 +8,7 @@ release/
 # Reference repos (kept locally, not part of this app)
 /agent-sessions/
 /cli-continues/
-
+/vendor/
 # Build/verification artifacts
 scripts/*.mjs
 

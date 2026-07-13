@@ -1,57 +1,54 @@
 #!/usr/bin/env bash
-# Install the locally-built AgentSessionViewer.app into /Applications.
-# Always re-packs first (unless --skip-pack is given). Ad-hoc signs so
-# macOS Gatekeeper lets it launch on this machine.
+# Build AgentSessionViewer.app in a temporary directory, install it into
+# /Applications, and remove the temporary build on success or failure.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 APP_NAME="AgentSessionViewer.app"
 APP_BIN="${APP_NAME%.app}"
-DEST="/Applications/$APP_NAME"
-SKIP_PACK=false
+DEST="${AGENT_SESSION_VIEWER_INSTALL_DESTINATION:-/Applications/$APP_NAME}"
+BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agent-session-viewer.XXXXXX")"
 
-for arg in "$@"; do
-  case "$arg" in
-    --skip-pack|-s) SKIP_PACK=true ;;
-  esac
-done
-
-# Pick the .app matching this Mac's architecture
-pick_app() {
-  local order
-  if [ "$(uname -m)" = "arm64" ]; then
-    order="release/mac-arm64 release/mac-universal release/mac"
-  else
-    order="release/mac release/mac-universal release/mac-arm64"
-  fi
-  for d in $order; do
-    [ -d "$d/$APP_NAME" ] && { echo "$d/$APP_NAME"; return; }
-  done
-  ls -dt release/mac*/"$APP_NAME" 2>/dev/null | head -1 || true
+cleanup() {
+  rm -rf "$BUILD_DIR"
 }
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
 
-if [ "$SKIP_PACK" = false ]; then
-  echo "Building & packaging app…"
-  rm -rf release/mac release/mac-arm64 release/mac-universal
-  npm run pack:dir
-fi
+case "$(uname -m)" in
+  arm64) BUILD_ARCH="arm64" ;;
+  x86_64) BUILD_ARCH="x64" ;;
+  *)
+    echo "error: unsupported macOS architecture: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
 
-SRC="$(pick_app)"
+cd "$ROOT_DIR"
+echo "Building unpacked $BUILD_ARCH app in: $BUILD_DIR"
+bun run build
+bunx electron-builder --dir --mac --"$BUILD_ARCH" \
+  --config.directories.output="$BUILD_DIR"
 
-if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
-  echo "error: could not find $APP_NAME under release/. Run 'npm run pack:dir'." >&2
+shopt -s nullglob
+apps=("$BUILD_DIR"/mac*/"$APP_NAME")
+shopt -u nullglob
+
+if [ "${#apps[@]}" -ne 1 ]; then
+  echo "error: expected one $APP_NAME under $BUILD_DIR, found ${#apps[@]}" >&2
   exit 1
 fi
+SRC="${apps[0]}"
 
 echo "Installing: $SRC"
 echo "      into: $DEST"
 
 # Quit any running instance so the bundle can be replaced.
-osascript -e "tell application \"$APP_BIN\" to quit" >/dev/null 2>&1 || true
 pkill -f "$DEST/Contents/MacOS/$APP_BIN" >/dev/null 2>&1 || true
 sleep 1
 
+mkdir -p "$(dirname "$DEST")"
 rm -rf "$DEST"
 cp -R "$SRC" "$DEST"
 
@@ -59,5 +56,9 @@ cp -R "$SRC" "$DEST"
 xattr -dr com.apple.quarantine "$DEST" >/dev/null 2>&1 || true
 codesign --force --deep --sign - "$DEST" >/dev/null 2>&1 || true
 
-echo "✓ Installed. Launching…"
-open "$DEST"
+if [ "${AGENT_SESSION_VIEWER_NO_LAUNCH:-0}" = "1" ]; then
+  echo "Installed: $DEST"
+else
+  echo "Installed. Launching..."
+  open "$DEST"
+fi
