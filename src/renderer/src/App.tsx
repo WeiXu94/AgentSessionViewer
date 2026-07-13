@@ -223,13 +223,8 @@ export function App(): JSX.Element {
   const reqRef = useRef(0)
   const globalReqRef = useRef(0)
   const scrollTokenRef = useRef(0)
-  const pendingJumpRef = useRef<{ key: string; nodeIndex: number } | null>(null)
   const rowMenuRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    pendingJumpRef.current = pendingJump
-  }, [pendingJump])
 
   async function refresh(force = false): Promise<void> {
     setLoadingList(true)
@@ -327,15 +322,6 @@ export function App(): JSX.Element {
     }
   }, [selected?.source, selected?.id, selected?.originalPath])
 
-  useEffect(() => {
-    setTab('session')
-    setScrollTarget(null)
-    // Arriving via a search jump keeps the query so highlights survive.
-    if (selected && pendingJumpRef.current?.key === metaKey(selected)) return
-    setPendingJump(null) // navigating elsewhere voids any queued jump
-    setActiveMatchIndex(0)
-  }, [selected?.source, selected?.id])
-
   useEffect(() => window.api.onSearchIndexProgress(setIndexProgress), [])
 
   const sources = useMemo(() => {
@@ -374,9 +360,16 @@ export function App(): JSX.Element {
     return sessions.find((session) => session.source === selected.source && session.id === selected.forkParentId) ?? null
   }, [selected?.source, selected?.forkParentId, sessions])
 
-  function jumpToSession(session: SessionMeta): void {
+  function selectSession(session: SessionMeta | null, preservePendingJump = false): void {
     setSelected(session)
     setTab('session')
+    setScrollTarget(null)
+    setActiveMatchIndex(0)
+    if (!preservePendingJump) setPendingJump(null)
+  }
+
+  function jumpToSession(session: SessionMeta): void {
+    selectSession(session)
     setRowMenu(null)
   }
 
@@ -528,9 +521,8 @@ export function App(): JSX.Element {
     (row: FlatSearchRow): void => {
       const key = metaKey(row.group.session)
       setSearchOpen(false)
-      setTab('session')
       setPendingJump({ key, nodeIndex: row.match.nodeIndex })
-      if (!selected || metaKey(selected) !== key) setSelected(row.group.session)
+      selectSession(row.group.session, true)
     },
     [selected]
   )
@@ -658,7 +650,7 @@ export function App(): JSX.Element {
         // Sweep the row out via CSS, then drop it from local state. No full
         // rescan — the deleted session is gone from storage, so it won't
         // reappear on the next manual reload.
-        if (selected && metaKey(selected) === metaKey(s)) setSelected(null)
+        if (selected && metaKey(selected) === metaKey(s)) selectSession(null)
         const doomed = collectRemovableKeys(sessions, s)
         setRemovingKeys((prev) => {
           const next = new Set(prev)
@@ -752,7 +744,7 @@ export function App(): JSX.Element {
                 selectedKey={selected ? metaKey(selected) : null}
                 removingKeys={removingKeys}
                 grouped={groupMode !== 'chronological'}
-                onSelect={setSelected}
+                onSelect={selectSession}
                 onContextMenu={onContextMenu}
                 onToggle={toggleExpand}
                 onToggleGroup={toggleGroup}
